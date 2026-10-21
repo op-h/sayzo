@@ -2,6 +2,14 @@
 
 All notable changes to Sayzo are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.1.1] - 2026-10-21
+
+### Fixed
+- The Arabic sample text on the Home page still used the app's old name.
+
+### Changed
+- Added screenshots and a download link to the README.
+
 ## [0.1.0] - 2026-10-21
 
 First public release.
@@ -15,4 +23,5 @@ First public release.
 - WAV export, reading history, tray menu, launch at startup, hide from screen sharing.
 - Customizable global shortcuts, themes and transparency.
 
+[0.1.1]: https://github.com/op-h/sayzo/releases/tag/v0.1.1
 [0.1.0]: https://github.com/op-h/sayzo/releases/tag/v0.1.0

@@ -6,7 +6,7 @@ import { api } from "@/lib/api";
 import { PageLayout } from "./PageLayout";
 
 const SAMPLE = `Sayzo reads any text on your screen with a natural voice, and it works completely offline.
-يقرأ سبيكلي أي نص على شاشتك بصوت طبيعي، ويعمل بدون إنترنت.`;
+يقرأ Sayzo أي نص على شاشتك بصوت طبيعي، ويعمل بدون إنترنت.`;
 
 export const Home = () => {
   const { settings } = useSettings();

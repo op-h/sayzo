@@ -13,6 +13,12 @@
 
 Designed and developed by [**OPH**](https://github.com/op-h)
 
+[**⬇ Download for Windows**](https://github.com/op-h/sayzo/releases/latest)
+
+<br />
+
+<img src="docs/screenshots/bar.png" width="600" alt="Sayzo floating bar" />
+
 </div>
 
 ---
@@ -33,6 +39,14 @@ Sayzo is a small glass bar that floats at the top of your screen. Select text in
 - **Respects your clipboard.** Sayzo reads selections through UI Automation where it can. When it has to copy, your clipboard is restored afterwards.
 - **Save as audio.** Any text can be exported as a WAV file to `Music\Sayzo`.
 - **Desktop extras.** Follows your audio device, keeps a history, sits in the tray, can launch at startup, can hide from screen sharing, and has fully customizable shortcuts plus light, dark and transparent themes.
+
+## Screenshots
+
+| Home | Voices |
+|---|---|
+| ![Home](docs/screenshots/home.png) | ![Voices](docs/screenshots/voices.png) |
+| **Shortcuts** | **Settings** |
+| ![Shortcuts](docs/screenshots/shortcuts.png) | ![Settings](docs/screenshots/settings.png) |
 
 ## Download
 
