@@ -1,0 +1,56 @@
+[package]
+name = "sayzo"
+version = "0.1.0"
+description = "Select any text on screen and hear it read aloud with natural offline voices"
+authors = ["OPH"]
+license = "GPL-3.0"
+repository = "https://github.com/op-h/sayzo"
+edition = "2021"
+
+[lib]
+# The `_lib` suffix keeps the lib name distinct from the bin name on Windows
+name = "sayzo_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-single-instance = "2"
+tauri-plugin-autostart = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+sherpa-onnx = "1.13.8"
+rodio = { version = "0.20", default-features = false }
+hound = "3.5"
+arboard = "3"
+uiautomation = "0.22"
+once_cell = "1"
+regex = "1"
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.61", features = [
+  "Foundation",
+  "Foundation_Collections",
+  "Globalization",
+  "Graphics_Imaging",
+  "Media_Ocr",
+  "Storage_Streams",
+  "Win32_Foundation",
+  "Win32_Graphics_Gdi",
+  "Win32_System_Com",
+  "Win32_System_DataExchange",
+  "Win32_System_Threading",
+  "Win32_System_LibraryLoader",
+  "Win32_UI_Input_KeyboardAndMouse",
+  "Win32_UI_WindowsAndMessaging",
+] }
+
+[profile.release]
+# Thin LTO keeps most of the speed of full LTO with far less build memory
+lto = "thin"
+opt-level = 3
+strip = true

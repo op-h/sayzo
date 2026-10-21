@@ -1,0 +1,29 @@
+name: Bug report
+description: Something isn't working as expected
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: input
+    id: app
+    attributes:
+      label: Which app were you reading from?
+      placeholder: e.g. Chrome, Word, Acrobat, Windows Terminal
+  - type: input
+    id: version
+    attributes:
+      label: Sayzo version
+      description: Shown under the name in the dashboard sidebar
+      placeholder: e.g. 0.1.0
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      placeholder: e.g. Windows 11 24H2
