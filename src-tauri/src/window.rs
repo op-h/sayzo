@@ -75,7 +75,6 @@ pub fn create_dashboard(app: &AppHandle) {
     }
 }
 
-#[tauri::command]
 pub fn open_dashboard(app: AppHandle) -> Result<(), String> {
     let w = dashboard(&app).map_err(|e| e.to_string())?;
     let _ = w.show();
@@ -83,7 +82,6 @@ pub fn open_dashboard(app: AppHandle) -> Result<(), String> {
     w.set_focus().map_err(|e| e.to_string())
 }
 
-#[tauri::command]
 pub fn toggle_dashboard(app: AppHandle) -> Result<(), String> {
     let w = dashboard(&app).map_err(|e| e.to_string())?;
     if w.is_visible().unwrap_or(false) && w.is_focused().unwrap_or(false) {
@@ -93,9 +91,26 @@ pub fn toggle_dashboard(app: AppHandle) -> Result<(), String> {
     }
 }
 
+// Commands that may create a window must be async: building a window from a
+// synchronous command deadlocks the whole app on Windows
+#[tauri::command]
+pub async fn open_dashboard_command(app: AppHandle) -> Result<(), String> {
+    open_dashboard(app)
+}
+
+#[tauri::command]
+pub async fn toggle_dashboard_command(app: AppHandle) -> Result<(), String> {
+    toggle_dashboard(app)
+}
+
 /// Opens a transparent full-screen layer on the monitor under the cursor
 /// where the user drags a rectangle around the text to read
 #[tauri::command]
+pub async fn open_ocr_overlay_command(app: AppHandle) -> Result<(), String> {
+    open_ocr_overlay(app)
+}
+
+/// Covers the monitor under the cursor with the area picker
 pub fn open_ocr_overlay(app: AppHandle) -> Result<(), String> {
     if let Some(w) = app.get_webview_window("ocr-overlay") {
         let _ = w.set_focus();

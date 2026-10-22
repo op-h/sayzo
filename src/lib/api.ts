@@ -107,8 +107,8 @@ export const api = {
   exit: () => invoke("exit_app"),
   openAuthorPage: () => invoke("open_author_page"),
   setWindowHeight: (height: number) => invoke("set_window_height", { height }),
-  openDashboard: () => invoke("open_dashboard"),
-  openScreenReader: () => invoke("open_ocr_overlay"),
+  openDashboard: () => invoke("open_dashboard_command"),
+  openScreenReader: () => invoke("open_ocr_overlay_command"),
 };
 
 export const SHORTCUT_LABELS: Record<string, { name: string; description: string }> = {

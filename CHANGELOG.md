@@ -2,6 +2,11 @@
 
 All notable changes to Sayzo are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.2.1] - 2026-10-22
+
+### Fixed
+- The app froze, and couldn't even be closed, when the **Read text from a screen area** button on the bar was clicked. Opening the dashboard from the bar is protected against the same problem.
+
 ## [0.2.0] - 2026-10-22
 
 ### Added
@@ -36,6 +41,7 @@ First public release.
 - WAV export, reading history, tray menu, launch at startup, hide from screen sharing.
 - Customizable global shortcuts, themes and transparency.
 
+[0.2.1]: https://github.com/op-h/sayzo/releases/tag/v0.2.1
 [0.2.0]: https://github.com/op-h/sayzo/releases/tag/v0.2.0
 [0.1.1]: https://github.com/op-h/sayzo/releases/tag/v0.1.1
 [0.1.0]: https://github.com/op-h/sayzo/releases/tag/v0.1.0

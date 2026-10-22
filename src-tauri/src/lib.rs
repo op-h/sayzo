@@ -353,9 +353,9 @@ pub fn run() {
             open_author_page,
             exit_app,
             window::set_window_height,
-            window::open_dashboard,
-            window::toggle_dashboard,
-            window::open_ocr_overlay,
+            window::open_dashboard_command,
+            window::toggle_dashboard_command,
+            window::open_ocr_overlay_command,
         ])
         .setup(|app| {
             let handle = app.handle().clone();

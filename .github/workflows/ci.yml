@@ -27,6 +27,12 @@ jobs:
           npm ci
           npm run build
 
+      # rust-cache restores sherpa-onnx's prebuilt folder without its libraries,
+      # which makes the build skip the download and fail to link; start clean
+      - name: Clear partial sherpa-onnx download
+        shell: pwsh
+        run: Get-ChildItem src-tauri/target -Directory -Recurse -Filter sherpa-onnx-prebuilt -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
+
       # The real models aren't needed for unit tests; the bundler just needs the resources glob to match
       - name: Placeholder models folder
         shell: pwsh
