@@ -32,6 +32,8 @@ jobs:
         shell: pwsh
         run: New-Item -ItemType File -Force src-tauri/models/.placeholder | Out-Null
 
+      # Release mode: sherpa-onnx's prebuilt static libraries link reliably there,
+      # and it's the same configuration the installer is built with
       - name: Rust tests
         working-directory: src-tauri
-        run: cargo test
+        run: cargo test --release
