@@ -9,7 +9,8 @@
       src-tauri/models/
         espeak-ng-data/          phoneme data shared by all voices
         kokoro/                  English (Kokoro-82M v1.0, fp32)
-        ar-miro/  ar-dii/        Arabic (Piper)
+        ar-miro/ ar-dii/ ar-kareem/   Arabic (Piper)
+        catt/                    Arabic diacritizer (CATT, Abjad AI)
 
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File scripts/download-models.ps1
@@ -61,6 +62,7 @@ Copy-Item (Join-Path $kokoro 'espeak-ng-data') $espeak -Recurse
 $arabic = @{
     'ar-miro' = 'vits-piper-ar_JO-SA_miro_V2-high'
     'ar-dii'  = 'vits-piper-ar_JO-SA_dii-high'
+    'ar-kareem' = 'vits-piper-ar_JO-kareem-medium'
 }
 foreach ($key in $arabic.Keys) {
     $dir = Get-Archive $arabic[$key]
@@ -70,6 +72,13 @@ foreach ($key in $arabic.Keys) {
     Copy-Item $onnx.FullName (Join-Path $dest 'model.onnx') -Force
     Copy-Item (Join-Path $dir 'tokens.txt') $dest -Force
 }
+
+# Arabic diacritizer: restores the vowels the Arabic voices need
+$catt = Join-Path $models 'catt'
+New-Item -ItemType Directory -Force -Path $catt | Out-Null
+Write-Host "Downloading Arabic diacritizer..."
+Invoke-WebRequest -Uri 'https://huggingface.co/TigreGotico/catt-diacritizer/resolve/main/catt_eo.onnx' -OutFile (Join-Path $catt 'model.onnx')
+Set-Content (Join-Path $catt 'LICENSE.txt') 'CATT: Character-based Arabic Tashkeel Transformer, (c) Abjad AI, Apache-2.0. ONNX export: https://huggingface.co/TigreGotico/catt-diacritizer'
 
 Remove-Item $work -Recurse -Force
 $size = (Get-ChildItem $models -Recurse -File | Measure-Object Length -Sum).Sum / 1MB

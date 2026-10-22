@@ -1,7 +1,7 @@
 {
   "name": "sayzo",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Select any text on screen and hear it read aloud with natural offline voices",
   "license": "GPL-3.0",
   "author": "OPH (https://github.com/op-h)",
@@ -22,6 +22,7 @@
     "@radix-ui/react-switch": "^1.2.6",
     "@tailwindcss/vite": "^4.1.12",
     "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-dialog": "^2.8.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.539.0",

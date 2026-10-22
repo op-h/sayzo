@@ -28,10 +28,13 @@ impl History {
             .app_data_dir()
             .unwrap_or_else(|_| std::env::temp_dir().join("sayzo"))
             .join("history.json");
-        let items = fs::read_to_string(&path)
+        let mut items: Vec<HistoryItem> = fs::read_to_string(&path)
             .ok()
             .and_then(|s| serde_json::from_str(&s).ok())
             .unwrap_or_default();
+        // Older versions could store the same text twice with different spacing
+        let mut seen = std::collections::HashSet::new();
+        items.retain(|i| seen.insert(i.text.split_whitespace().collect::<Vec<_>>().join(" ")));
         Self { items: Mutex::new(items), path }
     }
 
@@ -44,9 +47,13 @@ impl History {
 
     pub fn add(&self, text: &str, source: &str) {
         let now = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0);
+        let text = text.trim();
+        // Compare ignoring spacing so the same selection copied twice isn't listed twice
+        let key = |t: &str| t.split_whitespace().collect::<Vec<_>>().join(" ");
+        let k = key(text);
         let mut items = self.items.lock().unwrap();
         // Re-reading the same text moves it to the top instead of duplicating it
-        items.retain(|i| i.text != text);
+        items.retain(|i| key(&i.text) != k);
         items.insert(0, HistoryItem { id: now, text: text.to_string(), source: source.to_string(), at: now });
         items.truncate(MAX_ITEMS);
         self.persist(&items);

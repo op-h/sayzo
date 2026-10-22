@@ -39,7 +39,7 @@ const Sidebar = () => {
         </div>
         <div className="flex flex-col">
           <h1 className="text-xs lg:text-base font-semibold text-foreground">Sayzo</h1>
-          <span className="text-[8px] lg:text-[10px] text-muted-foreground -mt-1 block">{version ? `(v${version})` : ""}</span>
+          <span className="text-[10px] text-muted-foreground leading-none mt-0.5 block">{version ? `v${version}` : ""}</span>
         </div>
       </div>
 

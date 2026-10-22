@@ -45,7 +45,7 @@ export const History = () => {
             <Card key={item.id} className="flex flex-row items-start gap-3 px-4 py-3">
               <div className="flex-1 min-w-0 flex flex-col gap-1.5">
                 <p dir="auto" className="text-sm line-clamp-2 leading-relaxed">
-                  {item.text}
+                  {item.text.trim()}
                 </p>
                 <div className="flex items-center gap-2 text-[11px] text-muted-foreground select-none">
                   <Badge variant="outline" className="text-[10px] px-1.5 py-0">

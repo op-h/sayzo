@@ -1,3 +1,4 @@
+mod arabic;
 mod history;
 mod mouse_hook;
 mod ocr;
@@ -7,6 +8,7 @@ mod settings;
 mod shortcuts;
 mod text;
 mod tts;
+mod voices;
 mod window;
 
 use history::{History, HistoryItem};
@@ -75,8 +77,59 @@ fn set_auto_read(app: AppHandle, enabled: bool) {
 }
 
 #[tauri::command]
-fn get_voices() -> Vec<tts::Voice> {
-    tts::voices()
+fn get_voices(app: AppHandle) -> Vec<tts::Voice> {
+    app.state::<Arc<tts::Engines>>().voices()
+}
+
+/// Imports a voice package the user picked, then checks it actually speaks
+#[tauri::command]
+async fn import_voice(app: AppHandle, path: String) -> Result<Vec<tts::Voice>, String> {
+    let engines = app.state::<Arc<tts::Engines>>().inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let added = engines.store().import(std::path::Path::new(&path)).map_err(|e| e.to_string())?;
+        if let Err(e) = engines.test_voice(&added[0].id) {
+            engines.unload(&added[0].id);
+            let _ = engines.store().remove(&added[0].id);
+            return Err(format!("The voice couldn't be loaded: {e}"));
+        }
+        let ids: Vec<String> = added.iter().map(|v| v.id.clone()).collect();
+        Ok(engines.voices().into_iter().filter(|v| ids.contains(&v.id)).collect())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+fn remove_voice(app: AppHandle, id: String) -> Result<(), String> {
+    let engines = app.state::<Arc<tts::Engines>>();
+    engines.unload(&id);
+    engines.store().remove(&id).map_err(|e| e.to_string())?;
+    // Anything that pointed at the removed voice falls back to the defaults
+    let s = app.state::<SettingsState>().update(|s| {
+        let d = Settings::default();
+        if !engines.voices().iter().any(|v| v.id == s.english_voice) {
+            s.english_voice = d.english_voice.clone();
+        }
+        if !engines.voices().iter().any(|v| v.id == s.arabic_voice) {
+            s.arabic_voice = d.arabic_voice.clone();
+        }
+        let all = engines.voices();
+        s.language_voices.retain(|_, v| all.iter().any(|x| x.id == *v));
+    });
+    let _ = app.emit("settings://changed", s);
+    Ok(())
+}
+
+#[tauri::command]
+fn set_voice_language(app: AppHandle, id: String, language: String) -> Result<(), String> {
+    app.state::<Arc<tts::Engines>>().store().set_language(&id, &language).map_err(|e| e.to_string())
+}
+
+/// Opens the free voice collection in the browser. The URL is fixed so the
+/// webview can't launch arbitrary programs.
+#[tauri::command]
+fn open_voice_library() {
+    let _ = std::process::Command::new("explorer").arg("https://github.com/k2-fsa/sherpa-onnx/releases/tag/tts-models").spawn();
 }
 
 #[tauri::command]
@@ -272,6 +325,7 @@ pub fn run() {
                 })
                 .build(),
         )
+        .plugin(tauri_plugin_dialog::init())
         .manage(shortcuts::Registered::default())
         .manage(EngineState(Mutex::new(EngineStatus::default())))
         .invoke_handler(tauri::generate_handler![
@@ -279,6 +333,10 @@ pub fn run() {
             update_settings,
             set_auto_read,
             get_voices,
+            import_voice,
+            remove_voice,
+            set_voice_language,
+            open_voice_library,
             get_engine_status,
             speak_text,
             reader_control,
@@ -303,7 +361,9 @@ pub fn run() {
             let handle = app.handle().clone();
             app.manage(SettingsState::load(&handle));
             app.manage(History::load(&handle));
-            let engines = Arc::new(tts::Engines::new(models_dir(&handle)));
+            let voice_dir = handle.path().app_data_dir().unwrap_or_else(|_| std::env::temp_dir().join("sayzo")).join("voices");
+            let engines = Arc::new(tts::Engines::new(models_dir(&handle), voices::VoiceStore::new(voice_dir)));
+            app.manage(engines.clone());
             app.manage(Reader::new(handle.clone(), engines.clone()));
 
             let s = app.state::<SettingsState>().get();
@@ -320,7 +380,7 @@ pub fn run() {
             // Load the voice models in the background so the first read starts instantly
             std::thread::spawn(move || {
                 let s = handle.state::<SettingsState>().get();
-                let status = match engines.preload(&s.english_voice, &s.arabic_voice) {
+                let status = match engines.preload(&s.voice_plan(None)) {
                     Ok(()) => EngineStatus { ready: true, error: None },
                     Err(e) => EngineStatus { ready: false, error: Some(e.to_string()) },
                 };

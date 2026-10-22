@@ -77,7 +77,7 @@ export const Home = () => {
       </div>
 
       <div className="flex flex-col gap-2">
-        <Header title="Try it" description="Type or paste anything. Arabic and English are detected automatically, even mixed in one sentence." />
+        <Header title="Try it" description="Type or paste anything. The language is detected automatically, even when languages are mixed in one sentence." />
         <Textarea dir="auto" value={text} onChange={(e) => setText(e.target.value)} className="min-h-32 text-sm" />
         <div className="flex gap-2">
           {busy ? (

@@ -12,7 +12,7 @@ export const voiceLabel = (v: Voice) => `${v.name} · ${v.accent} ${v.gender}${v
 
 export const VoiceSelect = ({ voices, value, onChange }: { voices: Voice[]; value?: string; onChange: (id: string) => void }) => {
   const groups = voices.reduce<Record<string, Voice[]>>((acc, v) => {
-    const key = `${v.accent} ${v.gender}`;
+    const key = [v.imported ? "Imported" : v.accent, v.gender].filter(Boolean).join(" ");
     (acc[key] ??= []).push(v);
     return acc;
   }, {});
@@ -57,11 +57,11 @@ export const QuickSettings = ({ settings, update }: Props) => {
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
               <Label className="text-xs">English voice</Label>
-              <VoiceSelect voices={voices.filter((v) => v.lang === "en")} value={settings.englishVoice} onChange={(englishVoice) => update({ englishVoice })} />
+              <VoiceSelect voices={voices.filter((v) => v.language === "en")} value={settings.englishVoice} onChange={(englishVoice) => update({ englishVoice })} />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label className="text-xs">Arabic voice</Label>
-              <VoiceSelect voices={voices.filter((v) => v.lang === "ar")} value={settings.arabicVoice} onChange={(arabicVoice) => update({ arabicVoice })} />
+              <VoiceSelect voices={voices.filter((v) => v.language === "ar")} value={settings.arabicVoice} onChange={(arabicVoice) => update({ arabicVoice })} />
             </div>
             <div className="flex flex-col gap-2">
               <div className="flex justify-between">

@@ -7,6 +7,8 @@ export interface Settings {
   autoRead: boolean;
   englishVoice: string;
   arabicVoice: string;
+  /** Voice for every other language, keyed by ISO 639-1 code */
+  languageVoices: Record<string, string>;
   speed: number;
   volume: number;
   alwaysOnTop: boolean;
@@ -19,11 +21,32 @@ export interface Settings {
 export interface Voice {
   id: string;
   name: string;
-  lang: Lang;
+  /** ISO 639-1 code, or "und" when an imported voice's language is unknown */
+  language: string;
   accent: string;
-  gender: "female" | "male";
+  gender: string;
   recommended: boolean;
+  imported: boolean;
 }
+
+export const LANGUAGE_NAMES: Record<string, string> = {
+  en: "English", ar: "Arabic", es: "Spanish", fr: "French", it: "Italian", pt: "Portuguese", hi: "Hindi", de: "German",
+  ru: "Russian", uk: "Ukrainian", tr: "Turkish", fa: "Persian", ur: "Urdu", ku: "Kurdish", zh: "Chinese", ja: "Japanese",
+  ko: "Korean", nl: "Dutch", pl: "Polish", sv: "Swedish", nb: "Norwegian", da: "Danish", fi: "Finnish", el: "Greek",
+  he: "Hebrew", cs: "Czech", hu: "Hungarian", ro: "Romanian", vi: "Vietnamese", id: "Indonesian", bn: "Bengali",
+  th: "Thai", ca: "Catalan", sw: "Swahili", ka: "Georgian", kk: "Kazakh", sr: "Serbian", sk: "Slovak", sl: "Slovenian",
+  is: "Icelandic", cy: "Welsh", ne: "Nepali", ml: "Malayalam", te: "Telugu", lb: "Luxembourgish", lv: "Latvian", et: "Estonian",
+};
+
+export const languageName = (code: string) => LANGUAGE_NAMES[code] ?? (code === "und" ? "Unknown language" : code.toUpperCase());
+
+/** The voice currently chosen for a language */
+export const chosenVoice = (s: Settings, lang: string) =>
+  lang === "en" ? s.englishVoice : lang === "ar" ? s.arabicVoice : s.languageVoices[lang];
+
+/** Settings patch that makes `id` the voice for `lang` */
+export const chooseVoice = (s: Settings, lang: string, id: string): Partial<Settings> =>
+  lang === "en" ? { englishVoice: id } : lang === "ar" ? { arabicVoice: id } : { languageVoices: { ...s.languageVoices, [lang]: id } };
 
 export interface Sentence {
   text: string;
@@ -62,6 +85,11 @@ export const api = {
   updateSettings: (settings: Settings) => invoke<string[]>("update_settings", { settings }),
   setAutoRead: (enabled: boolean) => invoke("set_auto_read", { enabled }),
   getVoices: () => invoke<Voice[]>("get_voices"),
+  /** Imports a voice package (archive, folder or .onnx) and returns the voices it added */
+  importVoice: (path: string) => invoke<Voice[]>("import_voice", { path }),
+  removeVoice: (id: string) => invoke("remove_voice", { id }),
+  setVoiceLanguage: (id: string, language: string) => invoke("set_voice_language", { id, language }),
+  openVoiceLibrary: () => invoke("open_voice_library"),
   getEngineStatus: () => invoke<EngineStatus>("get_engine_status"),
   speak: (text: string, opts: { source?: string; voice?: string } = {}) =>
     invoke("speak_text", { text, source: opts.source ?? null, voice: opts.voice ?? null }),

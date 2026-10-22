@@ -12,6 +12,8 @@ pub struct Settings {
     pub auto_read: bool,
     pub english_voice: String,
     pub arabic_voice: String,
+    /// Voice for every other language, keyed by ISO 639-1 code
+    pub language_voices: BTreeMap<String, String>,
     pub speed: f32,
     pub volume: f32,
     pub always_on_top: bool,
@@ -45,6 +47,7 @@ impl Default for Settings {
             auto_read: false,
             english_voice: "en-3".into(),
             arabic_voice: "ar-miro".into(),
+            language_voices: BTreeMap::new(),
             speed: 1.0,
             volume: 1.0,
             always_on_top: true,
@@ -59,6 +62,18 @@ impl Default for Settings {
 pub struct SettingsState {
     inner: Mutex<Settings>,
     path: PathBuf,
+}
+
+impl Settings {
+    /// Which voice reads which language, optionally forcing one voice for everything
+    pub fn voice_plan(&self, force: Option<String>) -> crate::tts::VoicePlan {
+        crate::tts::VoicePlan {
+            english: self.english_voice.clone(),
+            arabic: self.arabic_voice.clone(),
+            others: self.language_voices.clone(),
+            force,
+        }
+    }
 }
 
 impl SettingsState {

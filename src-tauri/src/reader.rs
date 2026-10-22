@@ -77,6 +77,8 @@ pub struct Reader {
     session: Arc<AtomicU64>,
     state: Arc<Mutex<State>>,
     output: Arc<Mutex<Option<Output>>>,
+    /// Languages already reported as having no voice during this read
+    warned: Arc<Mutex<std::collections::HashSet<String>>>,
 }
 
 fn default_device_name() -> String {
@@ -121,6 +123,7 @@ impl Reader {
                 sink: None,
             })),
             output: Arc::new(Mutex::new(None)),
+            warned: Arc::new(Mutex::new(Default::default())),
         };
         reader.spawn_monitor();
         reader
@@ -140,7 +143,7 @@ impl Reader {
     }
 
     pub fn speak(&self, raw: &str, source: &str, voice_override: Option<String>) -> Result<()> {
-        let sentences = text::split(raw);
+        let sentences = text::split_for(raw, &self.engines.languages());
         if sentences.is_empty() {
             return Ok(());
         }
@@ -168,6 +171,7 @@ impl Reader {
             st.voice_override = voice_override.clone();
             id
         };
+        self.warned.lock().unwrap().clear();
         self.emit_session();
 
         let this = self.clone();
@@ -189,17 +193,17 @@ impl Reader {
             }
             // Settings are read per sentence so speed and voice changes apply mid-read
             let s = self.app.state::<SettingsState>().get();
-            let (en, ar) = match &voice_override {
-                Some(v) if v.starts_with("ar-") => (s.english_voice.clone(), v.clone()),
-                Some(v) => (v.clone(), s.arabic_voice.clone()),
-                None => (s.english_voice.clone(), s.arabic_voice.clone()),
-            };
+            let plan = s.voice_plan(voice_override.clone());
             let mut samples = Vec::new();
             for (i, (lang, seg)) in sentence.segments.iter().enumerate() {
                 if i > 0 {
                     samples.extend(std::iter::repeat(0.0).take(OUT_SR as usize * SEGMENT_GAP_MS / 1000));
                 }
-                match self.engines.synth(*lang, seg, &en, &ar, s.speed, alive.clone()) {
+                if self.engines.voice_for(lang, &plan).is_none() {
+                    self.notice_missing_voice(lang);
+                    continue;
+                }
+                match self.engines.synth(lang, seg, &plan, s.speed, alive.clone()) {
                     Ok(Some(mut audio)) => samples.append(&mut audio),
                     Ok(None) => return,
                     Err(e) => {
@@ -352,8 +356,16 @@ impl Reader {
     }
 
     /// Renders the whole text to a WAV file in the user's Music\Sayzo folder
+    /// Tells the user once per language that nothing installed can read it
+    fn notice_missing_voice(&self, lang: &str) {
+        let first = self.warned.lock().unwrap().insert(lang.to_string());
+        if first {
+            crate::shortcuts::toast(&self.app, &format!("No voice installed for {} — add one in Dashboard → Voices", crate::voices::language_name(lang)));
+        }
+    }
+
     pub fn export(&self, raw: &str) -> Result<PathBuf> {
-        let sentences = text::split(raw);
+        let sentences = text::split_for(raw, &self.engines.languages());
         if sentences.is_empty() {
             return Err(anyhow!("nothing to export"));
         }
@@ -380,7 +392,7 @@ impl Reader {
         let pause = vec![0.0f32; OUT_SR as usize / 4];
         for sentence in &sentences {
             for (lang, seg) in &sentence.segments {
-                if let Some(audio) = self.engines.synth(*lang, seg, &s.english_voice, &s.arabic_voice, s.speed, || true)? {
+                if let Some(audio) = self.engines.synth(lang, seg, &s.voice_plan(None), s.speed, || true)? {
                     for x in audio.iter().chain(pause.iter()) {
                         writer.write_sample((x.clamp(-1.0, 1.0) * i16::MAX as f32) as i16)?;
                     }

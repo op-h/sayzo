@@ -13,10 +13,10 @@ pub enum Lang {
 pub struct Sentence {
     pub text: String,
     pub lang: Lang,
-    /// Script runs synthesized separately so an English word inside Arabic
-    /// (or the reverse) is spoken by the right voice instead of spelled out
+    /// Runs of one language (ISO 639-1 code, text), synthesized separately so a
+    /// foreign word or phrase is spoken by the right voice instead of spelled out
     #[serde(skip)]
-    pub segments: Vec<(Lang, String)>,
+    pub segments: Vec<(String, String)>,
 }
 
 /// Longest piece handed to the synthesizer in one call; longer sentences are
@@ -31,6 +31,121 @@ pub fn is_arabic(c: char) -> bool {
 
 fn is_latin(c: char) -> bool {
     c.is_ascii_alphabetic() || matches!(c as u32, 0x00C0..=0x024F)
+}
+
+/// Writing system of a word, used to cut sentences into single-language runs
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Script {
+    Arabic,
+    Latin,
+    Other(whatlang::Script),
+    /// Digits and punctuation: they join whatever run they're in
+    Neutral,
+}
+
+fn script_of(word: &str) -> Script {
+    if word.chars().any(is_arabic) {
+        Script::Arabic
+    } else if word.chars().any(is_latin) {
+        Script::Latin
+    } else if !word.chars().any(char::is_alphabetic) {
+        Script::Neutral
+    } else {
+        match whatlang::detect_script(word) {
+            Some(whatlang::Script::Latin) | None => Script::Latin,
+            Some(whatlang::Script::Arabic) => Script::Arabic,
+            Some(other) => Script::Other(other),
+        }
+    }
+}
+
+/// ISO 639-1 code for a whatlang language
+fn iso1(lang: whatlang::Lang) -> &'static str {
+    use whatlang::Lang::*;
+    match lang {
+        Eng => "en", Ara => "ar", Pes => "fa", Urd => "ur", Spa => "es", Fra => "fr", Deu => "de", Ita => "it", Por => "pt",
+        Rus => "ru", Ukr => "uk", Bel => "be", Bul => "bg", Srp => "sr", Mkd => "mk", Pol => "pl", Ces => "cs", Slk => "sk",
+        Slv => "sl", Hrv => "hr", Nld => "nl", Swe => "sv", Dan => "da", Nob => "nb", Fin => "fi", Est => "et", Lav => "lv",
+        Lit => "lt", Hun => "hu", Ron => "ro", Ell => "el", Tur => "tr", Aze => "az", Kat => "ka", Hye => "hy", Heb => "he",
+        Yid => "yi", Hin => "hi", Mar => "mr", Nep => "ne", Ben => "bn", Pan => "pa", Guj => "gu", Ori => "or", Tam => "ta",
+        Tel => "te", Kan => "kn", Mal => "ml", Sin => "si", Tha => "th", Khm => "km", Mya => "my", Vie => "vi", Ind => "id",
+        Jav => "jv", Tgl => "tl", Cmn => "zh", Jpn => "ja", Kor => "ko", Amh => "am", Afr => "af", Zul => "zu", Cat => "ca",
+        Epo => "eo", Lat => "la", Uzb => "uz", Tuk => "tk", Sna => "sn", Aka => "ak",
+        _ => "und",
+    }
+}
+
+/// Language most likely used when detection on a short run isn't reliable
+fn script_default(script: Script) -> &'static str {
+    use whatlang::Script as W;
+    match script {
+        Script::Arabic => "ar",
+        Script::Latin | Script::Neutral => "en",
+        Script::Other(s) => match s {
+            W::Cyrillic => "ru",
+            W::Greek => "el",
+            W::Hebrew => "he",
+            W::Devanagari => "hi",
+            W::Bengali => "bn",
+            W::Mandarin => "zh",
+            W::Hiragana | W::Katakana => "ja",
+            W::Hangul => "ko",
+            W::Thai => "th",
+            W::Georgian => "ka",
+            W::Armenian => "hy",
+            W::Tamil => "ta",
+            W::Telugu => "te",
+            W::Kannada => "kn",
+            W::Malayalam => "ml",
+            W::Gujarati => "gu",
+            W::Gurmukhi => "pa",
+            W::Ethiopic => "am",
+            W::Khmer => "km",
+            W::Myanmar => "my",
+            W::Sinhala => "si",
+            W::Oriya => "or",
+            _ => "und",
+        },
+    }
+}
+
+/// Languages built into Sayzo; imported voices add more
+#[cfg(test)]
+const BUILT_IN_LANGUAGES: &[&str] = &["en", "ar", "es", "fr", "it", "pt", "hi"];
+
+/// Picks the language of a single-script run. Detection only chooses among
+/// languages the user has a voice for (plus Persian/Urdu, which must never get
+/// Arabic vowels), so similar languages can't be confused with ones that
+/// can't be spoken anyway. Short runs keep the script's usual language.
+fn language_of(run: &str, script: Script, known: &[String]) -> String {
+    let default = script_default(script);
+    let words = run.split_whitespace().count();
+    let long_enough = words >= 4 || matches!(script, Script::Other(_));
+    let is_known = |code: &str| known.iter().any(|k| k == code) || matches!(code, "fa" | "ur");
+    let Some(info) = whatlang::detect(run) else { return default.to_string() };
+    let code = iso1(info.lang());
+    // Persian and Urdu share the Arabic script but must not get Arabic vowels.
+    // Only trust that when letters Arabic never uses are present.
+    if script == Script::Arabic {
+        let persian_letters = run.chars().any(|c| "پچژگکیےٹڈڑںۂھ".contains(c));
+        return if persian_letters && matches!(code, "fa" | "ur") { code.to_string() } else { "ar".to_string() };
+    }
+    if !long_enough || code == "und" {
+        return default.to_string();
+    }
+    if info.is_reliable() {
+        // A clear language with no voice is read by the script's default voice
+        return if is_known(code) { code.to_string() } else { default.to_string() };
+    }
+    // Close calls (Spanish vs Portuguese vs Italian) are settled among the
+    // languages that can actually be spoken
+    let allow: Vec<whatlang::Lang> = whatlang::Lang::all().iter().copied().filter(|l| is_known(iso1(*l)) && *l != whatlang::Lang::Ara).collect();
+    if is_known(code) && words >= 5 {
+        if let Some(best) = whatlang::Detector::with_allowlist(allow).detect(run) {
+            return iso1(best.lang()).to_string();
+        }
+    }
+    default.to_string()
 }
 
 pub fn detect(s: &str) -> Lang {
@@ -156,41 +271,48 @@ fn split_long(s: &str, max: usize) -> Vec<String> {
     out
 }
 
-/// Splits a sentence into runs of Arabic and Latin script. Digits, spaces and
-/// punctuation stay with the current run, and a minority run of one short
-/// word is folded back in since switching voices for it sounds worse.
-fn script_runs(s: &str, main: Lang) -> Vec<(Lang, String)> {
-    let mut runs: Vec<(Lang, String)> = Vec::new();
+/// Splits a sentence into runs of one script, then names each run's
+/// language. Digits, spaces and punctuation stay with the current run, and a
+/// minority run of one short word is folded back in since switching voices
+/// for it sounds worse.
+fn script_runs(s: &str, main: Lang, known: &[String]) -> Vec<(String, String)> {
+    let main_script = if main == Lang::Ar { Script::Arabic } else { Script::Latin };
+    let mut runs: Vec<(Script, String)> = Vec::new();
     for word in s.split_inclusive(char::is_whitespace) {
-        let lang = if word.chars().any(is_arabic) {
-            Lang::Ar
-        } else if word.chars().any(is_latin) {
-            Lang::En
-        } else {
-            runs.last().map(|r| r.0).unwrap_or(main)
+        let script = match script_of(word) {
+            Script::Neutral => runs.last().map(|r| r.0).unwrap_or(main_script),
+            other => other,
         };
         match runs.last_mut() {
-            Some(last) if last.0 == lang => last.1.push_str(word),
-            _ => runs.push((lang, word.to_string())),
+            Some(last) if last.0 == script => last.1.push_str(word),
+            _ => runs.push((script, word.to_string())),
         }
     }
-    let mut merged: Vec<(Lang, String)> = Vec::new();
-    for (lang, text) in runs {
-        let short = lang != main && text.split_whitespace().count() == 1 && text.trim().chars().count() <= 3;
-        let lang = if short { main } else { lang };
+    let mut merged: Vec<(Script, String)> = Vec::new();
+    for (script, text) in runs {
+        let short = script != main_script && text.split_whitespace().count() == 1 && text.trim().chars().count() <= 3;
+        let script = if short { main_script } else { script };
         match merged.last_mut() {
-            Some(last) if last.0 == lang => last.1.push_str(&text),
-            _ => merged.push((lang, text)),
+            Some(last) if last.0 == script => last.1.push_str(&text),
+            _ => merged.push((script, text)),
         }
     }
     merged
         .into_iter()
-        .map(|(l, t)| (l, t.trim().to_string()))
+        .map(|(script, t)| (language_of(t.trim(), script, known), t.trim().to_string()))
         .filter(|(_, t)| t.chars().any(|c| c.is_alphanumeric()))
         .collect()
 }
 
+/// Splits text into sentences using only the built-in languages
+#[cfg(test)]
 pub fn split(text: &str) -> Vec<Sentence> {
+    let known: Vec<String> = BUILT_IN_LANGUAGES.iter().map(|s| s.to_string()).collect();
+    split_for(text, &known)
+}
+
+/// Splits text into sentences, detecting among the given languages
+pub fn split_for(text: &str, known: &[String]) -> Vec<Sentence> {
     let mut pieces: Vec<String> = normalize(text)
         .lines()
         .flat_map(split_sentences)
@@ -209,7 +331,7 @@ pub fn split(text: &str) -> Vec<Sentence> {
         .into_iter()
         .map(|text| {
             let lang = detect(&text);
-            let segments = script_runs(&text, lang);
+            let segments = script_runs(&text, lang, known);
             Sentence { text, lang, segments }
         })
         .collect()
@@ -238,7 +360,21 @@ mod tests {
         let s = split("مرحبا بكم في تطبيق Sayzo Reader الجديد.");
         assert_eq!(s[0].lang, Lang::Ar);
         assert_eq!(s[0].segments.len(), 3);
-        assert_eq!(s[0].segments[1], (Lang::En, "Sayzo Reader".to_string()));
+        assert_eq!(s[0].segments[1], ("en".to_string(), "Sayzo Reader".to_string()));
+    }
+
+    #[test]
+    fn detects_other_languages() {
+        let langs = |t: &str| split(t).iter().flat_map(|s| s.segments.iter().map(|(l, _)| l.clone())).collect::<Vec<_>>();
+        assert_eq!(langs("Hoy vamos a la playa con todos mis amigos de la escuela."), ["es"]);
+        assert_eq!(langs("Aujourd'hui nous allons visiter le musée avec toute la famille."), ["fr"]);
+        assert_eq!(langs("Привет, как у тебя дела сегодня?"), ["ru"]);
+        assert_eq!(langs("Heute gehen wir mit der ganzen Familie in den Park."), ["en"]); // no German voice yet
+        let with_de = |t: &str| split_for(t, &["en".into(), "de".into()]).iter().flat_map(|s| s.segments.iter().map(|(l, _)| l.clone())).collect::<Vec<_>>();
+        assert_eq!(with_de("Heute gehen wir mit der ganzen Familie in den Park."), ["de"]);
+        assert_eq!(langs("I love reading books every night."), ["en"]);
+        assert_eq!(langs("من امروز به مدرسه رفتم و دوستانم را دیدم"), ["fa"]);
+        assert_eq!(langs("ذهب الولد إلى المدرسة صباحا مع أصدقائه"), ["ar"]);
     }
 
     #[test]
@@ -247,3 +383,4 @@ mod tests {
         assert!(split(&long).iter().all(|s| s.text.chars().count() <= MAX_CHUNK));
     }
 }
+

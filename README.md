@@ -32,7 +32,9 @@ Sayzo is a small glass bar that floats at the top of your screen. Select text in
   - **Auto-read on select.** Turn it on and just highlight text. A double-click reads a word and a triple-click reads a paragraph.
   - **Read selection.** Select text and press a shortcut.
   - **Read a screen area.** Drag a box around text you can't select (images, videos, scanned PDFs, games). It's recognized with the OCR built into Windows.
-- **Mixed-language reading.** Arabic and English are detected per sentence, and the voice switches mid-sentence for mixed text such as "أستخدم Kali Linux كل يوم".
+- **Many languages, detected automatically.** English, Arabic, Spanish, French, Italian, Portuguese and Hindi are built in, and the voice switches mid-sentence for mixed text such as "أستخدم Kali Linux كل يوم".
+- **Add any voice or language.** Import free voices from the [sherpa-onnx collection](https://github.com/k2-fsa/sherpa-onnx/releases/tag/tts-models) (Piper, Coqui, MMS, Kokoro) in 50+ languages and accents, straight from the Voices page.
+- **Arabic done properly.** Arabic is usually written without vowels, so Sayzo restores them offline (tashkeel) before speaking, and reads numbers as Arabic words. Three Arabic voices are included: Miro (best for formal Arabic), Kareem (best for everyday dialects) and Dii.
 - **Starts fast.** Speech is generated sentence by sentence while earlier sentences play, so you hear the first words almost immediately.
 - **Reading panel.** Shows the full text with the current sentence highlighted. Click any sentence to jump to it.
 - **Smart text cleanup.** Re-joins PDF and web line breaks, fixes hyphenated words, and skips URLs and markdown symbols.
@@ -47,6 +49,12 @@ Sayzo is a small glass bar that floats at the top of your screen. Select text in
 | ![Home](docs/screenshots/home.png) | ![Voices](docs/screenshots/voices.png) |
 | **Shortcuts** | **Settings** |
 | ![Shortcuts](docs/screenshots/shortcuts.png) | ![Settings](docs/screenshots/settings.png) |
+
+## Adding voices and languages
+
+1. Open **Dashboard → Voices** and click **Browse free voices**.
+2. Download a voice package, for example `vits-piper-de_DE-thorsten-medium.tar.bz2` for German or `vits-piper-ar_JO-kareem-medium.tar.bz2` for another Arabic accent.
+3. Click **Add voice package…** and pick the file. Sayzo detects the language, tests the voice, and starts using it for that language.
 
 ## Download
 
