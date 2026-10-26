@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
+  AudioLinesIcon,
   GripVerticalIcon,
   Loader2,
+  Minimize2Icon,
   MousePointerClickIcon,
+  PenLineIcon,
   PauseIcon,
   PlayIcon,
   ScanTextIcon,
@@ -19,6 +22,10 @@ import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { ReadingPanel } from "./ReadingPanel";
 import { QuickSettings } from "./QuickSettings";
+
+/** Width of the minimized bar, in logical pixels */
+const COMPACT_WIDTH = 206;
+const FULL_WIDTH = 600;
 
 export const Bar = () => {
   useWindowResize();
@@ -49,18 +56,77 @@ export const Bar = () => {
   };
 
   const autoRead = settings?.autoRead ?? false;
+  const compact = settings?.compactBar ?? false;
+
+  // The window follows the saved size (also when changed from another window)
+  useEffect(() => {
+    if (settings) api.setBarWidth(compact ? COMPACT_WIDTH : FULL_WIDTH).catch(() => {});
+  }, [compact, settings !== null]);
+
+  const setCompact = (on: boolean) => {
+    if (on) setPanelOpen(false);
+    update({ compactBar: on });
+  };
+
+  const grip = (
+    <Button
+      variant="ghost"
+      size="icon"
+      className="-ml-[2px] w-fit"
+      title="Drag to move"
+      onMouseDown={(e) => {
+        if (e.button === 0) getCurrentWindow().startDragging();
+      }}
+    >
+      <GripVerticalIcon className="h-4 w-4" />
+    </Button>
+  );
+
+  const autoReadButton = (
+    <Button
+      size="icon"
+      title={autoRead ? "Auto-read is on: selecting text reads it aloud. Click to turn off." : "Turn on auto-read: any text you select is read aloud"}
+      onClick={() => api.setAutoRead(!autoRead)}
+      className={cn(autoRead && "bg-green-600 text-white hover:bg-green-600/90 dark:bg-green-500 dark:hover:bg-green-500/90")}
+    >
+      <MousePointerClickIcon className="h-4 w-4" />
+    </Button>
+  );
+
+  if (compact) {
+    return (
+      <div className="w-screen h-screen flex overflow-hidden justify-center items-start">
+        <Card className="w-full flex flex-row items-center gap-2 p-2">
+          <Button size="icon" title="Show the full bar" onClick={() => setCompact(false)}>
+            {busy && reader.status !== "loading" ? <Visualizer active={!paused} paused={paused} /> : <AudioLinesIcon className="h-4 w-4" />}
+          </Button>
+          {busy ? (
+            <>
+              <Button size="icon" title={paused ? "Resume" : "Pause"} onClick={() => api.control("toggle")}>
+                {paused ? <PlayIcon className="h-4 w-4" /> : <PauseIcon className="h-4 w-4" />}
+              </Button>
+              <Button size="icon" variant="ghost" title="Stop" onClick={() => api.control("stop")}>
+                <SquareIcon className="h-4 w-4" />
+              </Button>
+            </>
+          ) : (
+            <>
+              {autoReadButton}
+              <Button size="icon" title="Draw on screen (Ctrl+Alt+D)" onClick={() => api.drawOpen()}>
+                <PenLineIcon className="h-4 w-4" />
+              </Button>
+            </>
+          )}
+          {grip}
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="w-screen h-screen flex overflow-hidden justify-center items-start">
       <Card className="w-full flex flex-row items-center gap-2 p-2">
-        <Button
-          size="icon"
-          title={autoRead ? "Auto-read is on: selecting text reads it aloud. Click to turn off." : "Turn on auto-read: any text you select is read aloud"}
-          onClick={() => api.setAutoRead(!autoRead)}
-          className={cn(autoRead && "bg-green-600 text-white hover:bg-green-600/90 dark:bg-green-500 dark:hover:bg-green-500/90")}
-        >
-          <MousePointerClickIcon className="h-4 w-4" />
-        </Button>
+        {autoReadButton}
 
         <Popover open={panelOpen} onOpenChange={setPanelOpen}>
           <div className="relative flex-1 min-w-0">
@@ -137,6 +203,9 @@ export const Bar = () => {
             <Button size="icon" title="Read text from a screen area (images, videos, scanned PDFs)" onClick={() => api.openScreenReader()}>
               <ScanTextIcon className="h-4 w-4" />
             </Button>
+            <Button size="icon" title="Draw on screen (Ctrl+Alt+D)" onClick={() => api.drawOpen()}>
+              <PenLineIcon className="h-4 w-4" />
+            </Button>
             <QuickSettings settings={settings} update={update} />
             <Button size="icon" title="Open dashboard" onClick={() => api.openDashboard()}>
               <SparklesIcon className="h-4 w-4" />
@@ -144,17 +213,10 @@ export const Bar = () => {
           </>
         )}
 
-        <Button
-          variant="ghost"
-          size="icon"
-          className="-ml-[2px] w-fit"
-          title="Drag to move"
-          onMouseDown={(e) => {
-            if (e.button === 0) getCurrentWindow().startDragging();
-          }}
-        >
-          <GripVerticalIcon className="h-4 w-4" />
+        <Button variant="ghost" size="icon" className="w-fit px-1.5" title="Minimize the bar" onClick={() => setCompact(true)}>
+          <Minimize2Icon className="h-4 w-4" />
         </Button>
+        {grip}
       </Card>
     </div>
   );

@@ -26,9 +26,27 @@ pub fn apply_settings(app: &AppHandle, s: &Settings) {
     }
 }
 
+/// Current logical width of the bar: full, or the small pill when minimized
+static BAR_CURRENT_WIDTH: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(BAR_WIDTH as u32);
+
 #[tauri::command]
 pub fn set_window_height(window: WebviewWindow, height: u32) -> Result<(), String> {
-    window.set_size(Size::Logical(LogicalSize::new(BAR_WIDTH, height as f64))).map_err(|e| e.to_string())
+    let width = BAR_CURRENT_WIDTH.load(std::sync::atomic::Ordering::SeqCst) as f64;
+    window.set_size(Size::Logical(LogicalSize::new(width, height as f64))).map_err(|e| e.to_string())
+}
+
+/// Switches the bar between full width and the minimized pill, keeping it
+/// centred on the same spot
+#[tauri::command]
+pub fn set_bar_width(window: WebviewWindow, width: u32) -> Result<(), String> {
+    let scale = window.scale_factor().map_err(|e| e.to_string())?;
+    let pos = window.outer_position().map_err(|e| e.to_string())?;
+    let old = window.outer_size().map_err(|e| e.to_string())?;
+    let new_w = (width as f64 * scale).round() as i32;
+    let x = pos.x + (old.width as i32 - new_w) / 2;
+    BAR_CURRENT_WIDTH.store(width, std::sync::atomic::Ordering::SeqCst);
+    window.set_size(Size::Logical(LogicalSize::new(width as f64, old.height as f64 / scale))).map_err(|e| e.to_string())?;
+    window.set_position(PhysicalPosition::new(x, pos.y)).map_err(|e| e.to_string())
 }
 
 pub fn toggle_main(app: &AppHandle) {

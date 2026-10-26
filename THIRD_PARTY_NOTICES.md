@@ -14,6 +14,7 @@ Sayzo includes or is based on the following third-party work.
 | [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) | Offline speech synthesis engine | Apache-2.0 |
 | [espeak-ng](https://github.com/espeak-ng/espeak-ng) data | Phoneme data used by the voices | GPL-3.0 |
 | [ONNX Runtime](https://github.com/microsoft/onnxruntime) | Neural network inference (inside sherpa-onnx) | MIT |
+| [perfect-freehand](https://github.com/steveruizok/perfect-freehand) | Smooth, pressure-sensitive ink | MIT |
 | [Tauri](https://tauri.app) | Application framework | MIT / Apache-2.0 |
 | [React](https://react.dev), [Radix UI](https://www.radix-ui.com), [Tailwind CSS](https://tailwindcss.com), [Lucide](https://lucide.dev) | User interface | MIT / ISC |
 | [rodio](https://github.com/RustAudio/rodio), [uiautomation](https://github.com/leexgone/uiautomation-rs), [arboard](https://github.com/1Password/arboard), [windows-rs](https://github.com/microsoft/windows-rs) | Audio, text capture, clipboard, Windows APIs | MIT / Apache-2.0 |

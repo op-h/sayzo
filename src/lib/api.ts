@@ -15,6 +15,8 @@ export interface Settings {
   showPanel: boolean;
   hideFromCapture: boolean;
   restoreClipboard: boolean;
+  /** The floating bar is minimized to a small pill */
+  compactBar: boolean;
   shortcuts: Record<string, string>;
 }
 
@@ -77,6 +79,12 @@ export interface EngineStatus {
   error: string | null;
 }
 
+export interface DrawState {
+  open: boolean;
+  /** Mouse mode: clicks go to the apps below while the ink stays visible */
+  passthrough: boolean;
+}
+
 export type ReaderAction = "pause" | "resume" | "toggle" | "stop" | "next" | "previous";
 
 export const api = {
@@ -109,6 +117,17 @@ export const api = {
   setWindowHeight: (height: number) => invoke("set_window_height", { height }),
   openDashboard: () => invoke("open_dashboard_command"),
   openScreenReader: () => invoke("open_ocr_overlay_command"),
+  setBarWidth: (width: number) => invoke("set_bar_width", { width }),
+  drawOpen: () => invoke("draw_open"),
+  drawClose: () => invoke("draw_close"),
+  drawSetPassthrough: (on: boolean) => invoke("draw_set_passthrough", { on }),
+  drawGetState: () => invoke<DrawState>("draw_get_state"),
+  drawToolbarSize: (width: number, height: number) => invoke("draw_toolbar_size", { width, height }),
+  /** The screen behind the drawing, as PNG bytes */
+  drawCaptureScreen: () => invoke<ArrayBuffer>("draw_capture_screen"),
+  /** Saves PNG bytes to Pictures\Sayzo and copies them; returns the file path */
+  drawSaveImage: (png: Uint8Array) => invoke<string>("draw_save_image", png),
+  drawReadRegion: (x: number, y: number, width: number, height: number) => invoke("draw_read_region", { x, y, width, height }),
 };
 
 export const SHORTCUT_LABELS: Record<string, { name: string; description: string }> = {
@@ -121,6 +140,7 @@ export const SHORTCUT_LABELS: Record<string, { name: string; description: string
   ocr: { name: "Read screen area", description: "Drag around text in images, videos or scanned PDFs to hear it" },
   toggle_window: { name: "Show / hide bar", description: "Show or hide the floating bar" },
   dashboard: { name: "Dashboard", description: "Open or close this window" },
+  draw: { name: "Draw on screen", description: "Start drawing, or switch between drawing and using your apps (ink stays)" },
 };
 
 const KEY_NAMES: Record<string, string> = {

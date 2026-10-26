@@ -21,6 +21,8 @@ pub struct Settings {
     pub show_panel: bool,
     pub hide_from_capture: bool,
     pub restore_clipboard: bool,
+    /// The floating bar is shrunk to a small pill
+    pub compact_bar: bool,
     pub shortcuts: BTreeMap<String, String>,
 }
 
@@ -35,6 +37,7 @@ pub fn default_shortcuts() -> BTreeMap<String, String> {
         ("ocr", "ctrl+alt+o"),
         ("toggle_window", "ctrl+backslash"),
         ("dashboard", "ctrl+shift+d"),
+        ("draw", "ctrl+alt+d"),
     ]
     .into_iter()
     .map(|(k, v)| (k.to_string(), v.to_string()))
@@ -54,6 +57,7 @@ impl Default for Settings {
             show_panel: false,
             hide_from_capture: false,
             restore_clipboard: true,
+            compact_bar: false,
             shortcuts: default_shortcuts(),
         }
     }

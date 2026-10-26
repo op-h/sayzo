@@ -37,6 +37,8 @@ Sayzo is a small glass bar that floats at the top of your screen. Select text in
 - **Arabic done properly.** Arabic is usually written without vowels, so Sayzo restores them offline (tashkeel) before speaking, and reads numbers as Arabic words. Three Arabic voices are included: Miro (best for formal Arabic), Kareem (best for everyday dialects) and Dii.
 - **Starts fast.** Speech is generated sentence by sentence while earlier sentences play, so you hear the first words almost immediately.
 - **Reading panel.** Shows the full text with the current sentence highlighted. Click any sentence to jump to it.
+- **Draw on screen.** Pen, highlighter, laser pointer, shapes, text, numbered steps and eraser over any app, like Epic Pen. It adds smart shapes (hold still to turn a scribble into a clean line, box or circle), a **Read** tool that reads aloud any text you box, mouse mode, whiteboard, fading ink, spotlight, and screenshots with your drawings.
+- **Mini bar.** Shrink the floating bar to a small pill when you don't need it.
 - **Smart text cleanup.** Re-joins PDF and web line breaks, fixes hyphenated words, and skips URLs and markdown symbols.
 - **Respects your clipboard.** Sayzo reads selections through UI Automation where it can. When it has to copy, your clipboard is restored afterwards.
 - **Save as audio.** Any text can be exported as a WAV file to `Music\Sayzo`.
@@ -76,8 +78,13 @@ The installer is about 430 MB because the voice models are bundled, which is wha
 | Next / previous sentence | `Ctrl` + `Alt` + `.` / `,` |
 | Show / hide the bar | `Ctrl` + `\` |
 | Open the dashboard | `Ctrl` + `Shift` + `D` |
+| Draw on screen / switch to mouse mode | `Ctrl` + `Alt` + `D` |
 
 All shortcuts can be changed in **Dashboard → Shortcuts**.
+
+## Drawing shortcuts
+
+While drawing: `P` pen · `H` highlighter · `K` laser · `L` line · `A` arrow · `R` rectangle · `O` ellipse · `T` text · `N` numbered steps · `E` eraser · `S` read aloud · `1`–`9` colours · `[` `]` size · `W` whiteboard · `B` blackboard · `F` fading ink · `G` spotlight · `V` hide drawings · `M` mouse mode · `Ctrl+Z` / `Ctrl+Y` undo / redo · `Delete` clear · `Ctrl+Shift+C` screenshot · `Esc` stop. Hold `Shift` for straight lines and perfect squares.
 
 ## Build from source
 

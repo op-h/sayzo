@@ -3933,12 +3933,13 @@ dependencies = [
 
 [[package]]
 name = "sayzo"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "arboard",
  "hound",
  "once_cell",
+ "png 0.17.16",
  "regex",
  "rodio",
  "serde",

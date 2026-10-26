@@ -86,6 +86,7 @@ pub fn run_action(app: &AppHandle, action: &str) {
             let _ = window::open_ocr_overlay(app.clone());
         }
         "toggle_window" => window::toggle_main(app),
+        "draw" => crate::draw::hotkey(app),
         "dashboard" => {
             let _ = window::toggle_dashboard(app.clone());
         }

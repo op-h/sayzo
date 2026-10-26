@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { DownloadIcon, Loader2, MousePointerClickIcon, PlayIcon, ScanTextIcon, SquareIcon, TextSelectIcon } from "lucide-react";
+import { DownloadIcon, Loader2, MousePointerClickIcon, PenLineIcon, PlayIcon, ScanTextIcon, SquareIcon, TextSelectIcon } from "lucide-react";
 import { Badge, Button, Card, Header, Kbd, Switch, Textarea } from "@/components";
 import { useEngineStatus, useReader, useSettings } from "@/hooks";
 import { api } from "@/lib/api";
@@ -35,6 +35,13 @@ export const Home = () => {
       body: "For text you can't select: images, videos, scanned PDFs, games. Drag a box around it.",
       accel: settings?.shortcuts.ocr,
     },
+    {
+      icon: PenLineIcon,
+      title: "Draw on screen",
+      body: "Pen, highlighter, laser, shapes, text and steps over any app. Box text with the Read tool to hear it.",
+      accel: settings?.shortcuts.draw,
+      action: () => api.drawOpen(),
+    },
   ];
 
   return (
@@ -61,7 +68,7 @@ export const Home = () => {
         <Switch checked={settings?.autoRead ?? false} onCheckedChange={(on) => api.setAutoRead(on)} />
       </Card>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         {ways.map((w) => (
           <Card key={w.title} className="gap-2 px-4 py-4">
             <div className="flex items-center gap-2">
@@ -71,7 +78,14 @@ export const Home = () => {
               <h3 className="text-sm font-medium">{w.title}</h3>
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed">{w.body}</p>
-            <Kbd accel={w.accel} className="mt-1" />
+            <div className="mt-1 flex items-center justify-between">
+              <Kbd accel={w.accel} />
+              {"action" in w && w.action && (
+                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={w.action}>
+                  Start drawing
+                </Button>
+              )}
+            </div>
           </Card>
         ))}
       </div>

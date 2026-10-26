@@ -1,7 +1,7 @@
 {
   "name": "sayzo",
   "private": true,
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Select any text on screen and hear it read aloud with natural offline voices",
   "license": "GPL-3.0",
   "author": "OPH (https://github.com/op-h)",
@@ -26,6 +26,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.539.0",
+    "perfect-freehand": "^1.2.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-router-dom": "^7.9.5",

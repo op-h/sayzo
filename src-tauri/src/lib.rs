@@ -1,4 +1,5 @@
 mod arabic;
+mod draw;
 mod history;
 mod mouse_hook;
 mod ocr;
@@ -248,12 +249,13 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
     let show = MenuItem::with_id(app, "show", "Show / hide bar", true, None::<&str>)?;
     let auto_read = CheckMenuItem::with_id(app, "auto_read", "Auto-read on select", true, s.auto_read, None::<&str>)?;
     let screen = MenuItem::with_id(app, "ocr", "Read text from screen area", true, None::<&str>)?;
+    let draw_item = MenuItem::with_id(app, "draw", "Draw on screen", true, None::<&str>)?;
     let dashboard = MenuItem::with_id(app, "dashboard", "Open dashboard", true, None::<&str>)?;
     let author = MenuItem::with_id(app, "author", "Designed by OPH (GitHub)", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit Sayzo", true, None::<&str>)?;
     let menu = Menu::with_items(
         app,
-        &[&show, &auto_read, &screen, &dashboard, &PredefinedMenuItem::separator(app)?, &author, &quit],
+        &[&show, &auto_read, &screen, &draw_item, &dashboard, &PredefinedMenuItem::separator(app)?, &author, &quit],
     )?;
     app.manage(TrayItems { auto_read });
 
@@ -270,6 +272,9 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
             }
             "ocr" => {
                 let _ = window::open_ocr_overlay(app.clone());
+            }
+            "draw" => {
+                let _ = draw::open(app);
             }
             "dashboard" => {
                 let _ = window::open_dashboard(app.clone());
@@ -327,6 +332,7 @@ pub fn run() {
         )
         .plugin(tauri_plugin_dialog::init())
         .manage(shortcuts::Registered::default())
+        .manage(draw::DrawMode::default())
         .manage(EngineState(Mutex::new(EngineStatus::default())))
         .invoke_handler(tauri::generate_handler![
             get_settings,
@@ -356,6 +362,15 @@ pub fn run() {
             window::open_dashboard_command,
             window::toggle_dashboard_command,
             window::open_ocr_overlay_command,
+            window::set_bar_width,
+            draw::draw_open,
+            draw::draw_close,
+            draw::draw_set_passthrough,
+            draw::draw_get_state,
+            draw::draw_toolbar_size,
+            draw::draw_capture_screen,
+            draw::draw_save_image,
+            draw::draw_read_region,
         ])
         .setup(|app| {
             let handle = app.handle().clone();
