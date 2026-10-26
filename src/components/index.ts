@@ -12,3 +12,4 @@ export * from "./ui/badge";
 export * from "./Kbd";
 export * from "./Header";
 export * from "./Visualizer";
+export * from "./Grip";

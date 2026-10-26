@@ -15,6 +15,10 @@ All notable changes to Sayzo are documented here. The format follows [Keep a Cha
 - **Minimize the floating bar** to a small pill that still shows playback controls while reading.
 - Drawing opens in **mouse mode**, so your screen stays live; pick a tool to draw, click the same tool again to go back to the mouse.
 - Drag either bar from any empty space, not just the grip; both bars are a little bigger.
+- **The drawing toolbar is linked to the voice bar:** it docks right under it (or above it, near the bottom of the screen), follows it when you move it, re-centres when you minimize or expand it, and the bar's pen button turns blue while drawing. Drag the toolbar away to undock it.
+- The voice bar stays on top of the drawing layer.
+- New six-dot grip: wider-spaced, fuller dots with hover and press feedback.
+- Both bars size themselves to their contents, with even spacing on every side.
 
 ### Fixed
 - Clicking the drawing area could cover the toolbar, so you couldn't pick another tool.
@@ -22,6 +26,8 @@ All notable changes to Sayzo are documented here. The format follows [Keep a Cha
 - Drawing shortcuts didn't work while an Arabic (or any non-English) keyboard layout was active.
 - Typing in a text box could trigger tool shortcuts instead of typing.
 - Popups opened off screen when the toolbar was dragged to the top.
+- The minimized bar had a wide empty area on the right; the drawing toolbar had a 2 px gap at the top.
+- A white box flashed on screen for a moment when drawing or the screen-area picker opened.
 
 ## [0.2.1] - 2026-10-22
 

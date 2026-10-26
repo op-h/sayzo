@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   AudioLinesIcon,
-  GripVerticalIcon,
   Loader2,
   Minimize2Icon,
   MousePointerClickIcon,
@@ -16,15 +15,14 @@ import {
   SquareIcon,
   InfoIcon,
 } from "lucide-react";
-import { Button, Card, Input, Kbd, Popover, PopoverAnchor, PopoverContent, PopoverTrigger, Visualizer } from "@/components";
+import { Button, Card, Grip, Input, Kbd, Popover, PopoverAnchor, PopoverContent, PopoverTrigger, Visualizer } from "@/components";
 import { useEngineStatus, useReader, useSettings, useToast, useWindowResize } from "@/hooks";
-import { api } from "@/lib/api";
+import { listen } from "@tauri-apps/api/event";
+import { api, DrawState } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { ReadingPanel } from "./ReadingPanel";
 import { QuickSettings } from "./QuickSettings";
 
-/** Width of the minimized bar, in logical pixels */
-const COMPACT_WIDTH = 232;
 const FULL_WIDTH = 660;
 
 /** Lets any empty part of the bar drag the window (buttons keep working) */
@@ -63,29 +61,51 @@ export const Bar = () => {
   const autoRead = settings?.autoRead ?? false;
   const compact = settings?.compactBar ?? false;
 
-  // The window follows the saved size (also when changed from another window)
+  // Full bar: fixed width. Minimized: the window hugs the pill exactly, so
+  // the spacing is the same on every side whatever buttons it shows.
+  const pillRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (settings) api.setBarWidth(compact ? COMPACT_WIDTH : FULL_WIDTH).catch(() => {});
+    if (!settings) return;
+    if (!compact) {
+      api.setBarWidth(FULL_WIDTH).catch(() => {});
+      return;
+    }
+    const el = pillRef.current;
+    if (!el) return;
+    let last = 0;
+    const fit = () => {
+      const w = Math.ceil(el.offsetWidth);
+      if (w && w !== last) {
+        last = w;
+        api.setBarWidth(w).catch(() => {});
+      }
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    return () => ro.disconnect();
   }, [compact, settings !== null]);
+
+  // The pen button shows when drawing is on
+  const [drawing, setDrawing] = useState(false);
+  useEffect(() => {
+    api.drawGetState().then((s) => setDrawing(s.open)).catch(() => {});
+    const un = listen<DrawState>("draw://state", (e) => setDrawing(e.payload.open));
+    return () => {
+      un.then((f) => f());
+    };
+  }, []);
+  // Blue while drawing is on, the same way auto-read turns green
+  const penClass = cn(drawing && "bg-blue-600 text-white hover:bg-blue-600/90 dark:bg-blue-500 dark:hover:bg-blue-500/90");
+  const penTitle = drawing ? "Stop drawing (Ctrl+Alt+D switches to the mouse)" : "Draw on screen (Ctrl+Alt+D)";
 
   const setCompact = (on: boolean) => {
     if (on) setPanelOpen(false);
     update({ compactBar: on });
   };
 
-  const grip = (
-    <Button
-      variant="ghost"
-      size="icon"
-      className="-ml-[2px] w-7 shrink-0 cursor-grab active:cursor-grabbing"
-      title="Drag to move (or drag any empty space)"
-      onMouseDown={(e) => {
-        if (e.button === 0) getCurrentWindow().startDragging();
-      }}
-    >
-      <GripVerticalIcon className="size-5" />
-    </Button>
-  );
+  // Pulled in slightly so the dots sit as far from the edge as the first button does
+  const grip = <Grip className="-mr-1.5" />;
 
   const autoReadButton = (
     <Button
@@ -101,7 +121,7 @@ export const Bar = () => {
   if (compact) {
     return (
       <div className="w-screen h-screen flex overflow-hidden justify-center items-start">
-        <Card className="w-full flex flex-row items-center gap-2 p-2.5" onMouseDown={dragFromBlank}>
+        <Card ref={pillRef} className="w-fit shrink-0 flex flex-row items-center gap-2 p-2.5 whitespace-nowrap" onMouseDown={dragFromBlank}>
           <Button size="icon" title="Show the full bar" onClick={() => setCompact(false)}>
             {busy && reader.status !== "loading" ? <Visualizer active={!paused} paused={paused} /> : <AudioLinesIcon className="h-4 w-4" />}
           </Button>
@@ -117,7 +137,7 @@ export const Bar = () => {
           ) : (
             <>
               {autoReadButton}
-              <Button size="icon" title="Draw on screen (Ctrl+Alt+D). Click again to stop." onClick={() => api.drawToggle()}>
+              <Button size="icon" className={penClass} title={penTitle} onClick={() => api.drawToggle()}>
                 <PenLineIcon className="h-4 w-4" />
               </Button>
             </>
@@ -208,7 +228,7 @@ export const Bar = () => {
             <Button size="icon" title="Read text from a screen area (images, videos, scanned PDFs)" onClick={() => api.openScreenReader()}>
               <ScanTextIcon className="h-4 w-4" />
             </Button>
-            <Button size="icon" title="Draw on screen (Ctrl+Alt+D). Click again to stop." onClick={() => api.drawToggle()}>
+            <Button size="icon" className={penClass} title={penTitle} onClick={() => api.drawToggle()}>
               <PenLineIcon className="h-4 w-4" />
             </Button>
             <QuickSettings settings={settings} update={update} />

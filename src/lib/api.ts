@@ -122,6 +122,8 @@ export const api = {
   drawClose: () => invoke("draw_close"),
   /** Opens drawing, or closes it when it is already open */
   drawToggle: () => invoke("draw_toggle"),
+  /** Stops the toolbar following the voice bar (after the user moves it) */
+  drawUndock: () => invoke("draw_undock"),
   drawSetPassthrough: (on: boolean) => invoke("draw_set_passthrough", { on }),
   drawGetState: () => invoke<DrawState>("draw_get_state"),
   /** Resizes the toolbar; returns which way it grew so popovers open on the side with room */

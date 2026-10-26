@@ -366,6 +366,7 @@ pub fn run() {
             draw::draw_open,
             draw::draw_close,
             draw::draw_toggle,
+            draw::draw_undock,
             draw::draw_set_passthrough,
             draw::draw_get_state,
             draw::draw_toolbar_size,
@@ -384,6 +385,15 @@ pub fn run() {
 
             let s = app.state::<SettingsState>().get();
             window::position_main(&handle);
+            // A docked drawing toolbar follows the voice bar around
+            if let Some(bar) = window::main_window(&handle) {
+                let h = handle.clone();
+                bar.on_window_event(move |e| {
+                    if matches!(e, tauri::WindowEvent::Moved(_) | tauri::WindowEvent::Resized(_)) {
+                        draw::follow_bar(&h);
+                    }
+                });
+            }
             window::apply_settings(&handle, &s);
             window::create_dashboard(&handle);
             setup_tray(&handle)?;

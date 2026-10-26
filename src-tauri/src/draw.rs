@@ -10,10 +10,19 @@ use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, Physical
 
 pub const CANVAS: &str = "draw-canvas";
 pub const TOOLBAR: &str = "draw-toolbar";
-/// Gap between the toolbar and the bottom of the screen
+/// Gap between the toolbar and the bottom of the screen (when not docked)
 const TOOLBAR_BOTTOM: f64 = 36.0;
-pub const TOOLBAR_HEIGHT: f64 = 60.0;
-pub const TOOLBAR_WIDTH: f64 = 920.0;
+/// Gap between the main bar and the drawing toolbar docked under it
+const DOCK_GAP: f64 = 8.0;
+/// Extra height the toolbar window takes while a popover is open (matches the frontend)
+const POPOVER_ROOM: f64 = 330.0;
+
+/// The toolbar is docked under the main bar and follows it; dragging it away undocks it
+static DOCKED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+/// Card height: 36 px buttons, 10 px padding each side and a 1 px border
+pub const TOOLBAR_HEIGHT: f64 = 58.0;
+/// Starting width; the toolbar then measures its card and fits it exactly
+pub const TOOLBAR_WIDTH: f64 = 903.0;
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -31,13 +40,77 @@ fn toolbar(app: &AppHandle) -> Option<WebviewWindow> {
     app.get_webview_window(TOOLBAR)
 }
 
-/// Focusing the full-screen canvas can lift it over the toolbar; re-insert
-/// the toolbar at the top of the always-on-top band so it stays reachable
-fn raise_toolbar(app: &AppHandle) {
-    if let Some(t) = toolbar(app) {
-        let _ = t.set_always_on_top(false);
-        let _ = t.set_always_on_top(true);
+/// Where the toolbar sits when docked: centred just under the main bar, or
+/// just above it when the bar is too close to the bottom of the screen.
+/// It's also kept inside the screen horizontally.
+fn dock_position(app: &AppHandle, toolbar_size: PhysicalSize<u32>) -> Option<PhysicalPosition<i32>> {
+    let bar = crate::window::main_window(app)?;
+    if !bar.is_visible().unwrap_or(false) {
+        return None;
     }
+    let (pos, size, scale) = (bar.outer_position().ok()?, bar.outer_size().ok()?, bar.scale_factor().ok()?);
+    let gap = (DOCK_GAP * scale).round() as i32;
+    let (tw, th) = (toolbar_size.width as i32, (TOOLBAR_HEIGHT * scale).round() as i32);
+    let mut x = pos.x + (size.width as i32 - tw) / 2;
+    let below = pos.y + size.height as i32 + gap;
+    let mut y = below;
+    if let Some(m) = bar.current_monitor().ok().flatten() {
+        // The usable area excludes the taskbar
+        let wa = m.work_area();
+        let (mx, my, mw, mh) = (wa.position.x, wa.position.y, wa.size.width as i32, wa.size.height as i32);
+        // Below needs room for the toolbar *and* an open popover, so a popover
+        // never runs off screen and the toolbar never jumps sides when one opens.
+        // Placed using its current height, so a grown toolbar ends right above the bar.
+        let room = th + (POPOVER_ROOM * scale).round() as i32;
+        if below + room > my + mh && pos.y - gap - room >= my {
+            y = pos.y - gap - toolbar_size.height as i32;
+        }
+        x = x.clamp(mx, (mx + mw - tw).max(mx));
+    }
+    Some(PhysicalPosition::new(x, y))
+}
+
+/// Whether the docked toolbar sits above the bar (the bar is near the bottom)
+fn docked_above(app: &AppHandle) -> bool {
+    match (crate::window::main_window(app), toolbar(app)) {
+        (Some(b), Some(t)) => matches!((b.outer_position(), t.outer_position()), (Ok(bp), Ok(tp)) if tp.y < bp.y),
+        _ => false,
+    }
+}
+
+/// Keeps a docked toolbar under the main bar when the bar moves or resizes
+pub fn follow_bar(app: &AppHandle) {
+    if !DOCKED.load(std::sync::atomic::Ordering::SeqCst) {
+        return;
+    }
+    if let Some(t) = toolbar(app) {
+        if let Some(p) = t.outer_size().ok().and_then(|s| dock_position(app, s)) {
+            let _ = t.set_position(p);
+        }
+    }
+}
+
+/// While drawing is open, the main bar is owned by the canvas so Windows
+/// keeps it above the drawing layer (clicking the canvas would otherwise
+/// cover it). The owner must be cleared before the canvas closes, because
+/// Windows destroys owned windows together with their owner.
+#[cfg(windows)]
+fn set_bar_owner(app: &AppHandle, owner: Option<&WebviewWindow>) {
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::UI::WindowsAndMessaging::{SetWindowLongPtrW, GWLP_HWNDPARENT};
+    let Some(bar) = crate::window::main_window(app) else { return };
+    let (Ok(bar_hwnd), owner_hwnd) = (bar.hwnd(), owner.and_then(|o| o.hwnd().ok())) else { return };
+    unsafe {
+        SetWindowLongPtrW(HWND(bar_hwnd.0 as _), GWLP_HWNDPARENT, owner_hwnd.map(|h| h.0 as isize).unwrap_or(0));
+    }
+}
+
+#[cfg(not(windows))]
+fn set_bar_owner(_app: &AppHandle, _owner: Option<&WebviewWindow>) {}
+
+#[tauri::command]
+pub fn draw_undock() {
+    DOCKED.store(false, std::sync::atomic::Ordering::SeqCst);
 }
 
 pub fn is_open(app: &AppHandle) -> bool {
@@ -71,6 +144,8 @@ pub fn open(app: &AppHandle) -> Result<()> {
         .skip_taskbar(true)
         .resizable(false)
         .visible(false)
+        // Transparent from the first frame: no white flash while the page loads
+        .background_color(tauri::window::Color(0, 0, 0, 0))
         .build()?;
     let _ = c.set_position(pos);
     let _ = c.set_size(size);
@@ -85,19 +160,40 @@ pub fn open(app: &AppHandle) -> Result<()> {
         .resizable(false)
         .focused(false)
         .visible(false)
+        .background_color(tauri::window::Color(0, 0, 0, 0))
         .maximizable(false)
         .inner_size(TOOLBAR_WIDTH, TOOLBAR_HEIGHT)
         // Owned by the canvas: Windows then always keeps it above the canvas,
         // even right after the canvas is clicked and activated
         .parent(&c)?
         .build()?;
-    let width = (TOOLBAR_WIDTH * scale) as i32;
-    let x = pos.x + (size.width as i32 - width) / 2;
-    let y = pos.y + size.height as i32 - ((TOOLBAR_HEIGHT + TOOLBAR_BOTTOM) * scale) as i32;
-    let _ = t.set_position(PhysicalPosition::new(x, y));
+    // Docked under the voice bar when it's on screen, otherwise at the bottom
+    let tsize = PhysicalSize::new((TOOLBAR_WIDTH * scale) as u32, (TOOLBAR_HEIGHT * scale) as u32);
+    match dock_position(app, tsize) {
+        Some(p) => {
+            DOCKED.store(true, std::sync::atomic::Ordering::SeqCst);
+            let _ = t.set_position(p);
+        }
+        None => {
+            DOCKED.store(false, std::sync::atomic::Ordering::SeqCst);
+            let x = pos.x + (size.width as i32 - tsize.width as i32) / 2;
+            let y = pos.y + size.height as i32 - ((TOOLBAR_HEIGHT + TOOLBAR_BOTTOM) * scale) as i32;
+            let _ = t.set_position(PhysicalPosition::new(x, y));
+        }
+    }
 
-    let _ = c.show();
-    let _ = t.show();
+    // Each window shows itself once its page has painted (no white box);
+    // this is only a fallback in case that signal never arrives
+    let (c2, t2) = (c.clone(), t.clone());
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(1500));
+        for w in [&c2, &t2] {
+            if !w.is_visible().unwrap_or(true) {
+                let _ = w.show();
+            }
+        }
+    });
+    set_bar_owner(app, Some(&c));
     // Starts in mouse mode: the screen stays live and usable until a tool is picked
     set_passthrough(app, true);
     Ok(())
@@ -105,6 +201,8 @@ pub fn open(app: &AppHandle) -> Result<()> {
 
 pub fn close(app: &AppHandle) {
     app.state::<DrawMode>().0.store(true, std::sync::atomic::Ordering::SeqCst);
+    // Release the main bar first, or closing the canvas would take it with it
+    set_bar_owner(app, None);
     for w in [toolbar(app), canvas(app)].into_iter().flatten() {
         let _ = w.close();
     }
@@ -118,7 +216,6 @@ pub fn set_passthrough(app: &AppHandle, on: bool) {
         let _ = c.set_ignore_cursor_events(on);
         if !on {
             let _ = c.set_focus();
-            raise_toolbar(app);
         }
     }
     emit_state(app, on);
@@ -192,7 +289,11 @@ pub fn draw_toolbar_size(window: WebviewWindow, width: f64, height: f64) -> Resu
     let old = window.outer_size().map_err(|e| e.to_string())?;
     let (nw, nh) = ((width * scale).round() as i32, (height * scale).round() as i32);
     let grow = nh - old.height as i32;
-    let down = if grow > 0 {
+    let docked = DOCKED.load(Ordering::SeqCst);
+    // Docked: grow away from the voice bar so it's never covered
+    let down = if docked {
+        !docked_above(window.app_handle())
+    } else if grow > 0 {
         let top = window.current_monitor().ok().flatten().map(|m| m.position().y).unwrap_or(0);
         let d = pos.y - grow < top;
         GROWS_DOWN.store(d, Ordering::SeqCst);
@@ -204,6 +305,9 @@ pub fn draw_toolbar_size(window: WebviewWindow, width: f64, height: f64) -> Resu
     let y = if down { pos.y } else { pos.y + old.height as i32 - nh };
     window.set_size(Size::Logical(LogicalSize::new(width, height))).map_err(|e| e.to_string())?;
     window.set_position(PhysicalPosition::new(x, y)).map_err(|e| e.to_string())?;
+    if docked {
+        follow_bar(window.app_handle());
+    }
     Ok(if down { "down" } else { "up" }.into())
 }
 
@@ -222,7 +326,6 @@ fn without_overlay<T>(app: &AppHandle, f: impl FnOnce(&WebviewWindow) -> Result<
         let _ = t.show();
     }
     let _ = c.set_focus();
-    raise_toolbar(app);
     result
 }
 

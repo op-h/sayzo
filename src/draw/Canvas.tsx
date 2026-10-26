@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { emit, listen } from "@tauri-apps/api/event";
+import { useShowWhenReady } from "@/hooks";
 import { api, DrawState } from "@/lib/api";
 import { constrain, hits, recognize } from "./geometry";
 import { CanvasStatus, Command, Element, FADE_MS, handleDrawKey, Point, SHAPES, Shape, Tool, useDrawSettings } from "./model";
@@ -16,6 +17,7 @@ interface Editing {
 
 /** Full-screen transparent layer that holds the ink */
 export const DrawCanvas = () => {
+  useShowWhenReady();
   const { settings, update } = useDrawSettings();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const elements = useRef<Element[]>([]);

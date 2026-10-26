@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { emit, listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
@@ -8,7 +8,6 @@ import {
   EyeIcon,
   EyeOffIcon,
   FlashlightIcon,
-  GripVerticalIcon,
   HighlighterIcon,
   HourglassIcon,
   ListOrderedIcon,
@@ -29,14 +28,14 @@ import {
   XIcon,
   ZapIcon,
 } from "lucide-react";
-import { Button, Card, Popover, PopoverContent, PopoverTrigger } from "@/components";
+import { Button, Card, Grip, Popover, PopoverContent, PopoverTrigger } from "@/components";
+import { useShowWhenReady } from "@/hooks";
 import { api, DrawState } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Board, CanvasStatus, COLORS, handleDrawKey, sendCommand, Shape, SHAPES, SIZES, Tool, TOOL_LABELS, useDrawSettings } from "./model";
 
-const WIDTH = 920;
-const COLLAPSED_WIDTH = 168;
-const HEIGHT = 60;
+/** Card height: 36 px buttons + 10 px padding each side + 1 px border (width is measured) */
+const HEIGHT = 58;
 /** Room above the toolbar for a popover */
 const POPOVER_HEIGHT = 330;
 
@@ -60,32 +59,13 @@ const BOARDS: { id: Board; label: string }[] = [
   { id: "black", label: "Blackboard (B)" },
 ];
 
-/**
- * Grows the toolbar window while a popover is open so it isn't clipped:
- * upwards normally, downwards when the toolbar sits near the top of the screen.
- */
-const usePopoverRoom = (collapsed: boolean, setSide: (s: "top" | "bottom") => void) => {
-  useEffect(() => {
-    let open = false;
-    const sync = () => {
-      const now = document.querySelectorAll("[data-radix-popper-content-wrapper]").length > 0;
-      if (now !== open) {
-        open = now;
-        api
-          .drawToolbarSize(collapsed ? COLLAPSED_WIDTH : WIDTH, now ? HEIGHT + POPOVER_HEIGHT : HEIGHT)
-          .then((dir) => now && setSide(dir === "down" ? "bottom" : "top"))
-          .catch(() => {});
-      }
-    };
-    const observer = new MutationObserver(sync);
-    observer.observe(document.body, { childList: true, subtree: true });
-    return () => observer.disconnect();
-  }, [collapsed, setSide]);
-};
-
 /** Lets any empty part of the toolbar drag the window (buttons keep working) */
 const dragFromBlank = (e: React.MouseEvent) => {
-  if (e.button === 0 && e.target === e.currentTarget) getCurrentWindow().startDragging();
+  if (e.button === 0 && e.target === e.currentTarget) {
+    // Moving the toolbar yourself undocks it from the voice bar
+    api.drawUndock();
+    getCurrentWindow().startDragging();
+  }
 };
 
 const Divider = () => <div className="pointer-events-none mx-1 h-7 w-px shrink-0 bg-input/60" />;
@@ -105,12 +85,26 @@ const ToolButton = ({ tool, active, onPick }: { tool: Tool; active: boolean; onP
   );
 };
 
-const Toggle = ({ on, title, icon: Icon, onClick, disabled }: { on?: boolean; title: string; icon: LucideIcon; onClick: () => void; disabled?: boolean }) => (
+const Toggle = ({
+  on,
+  title,
+  icon: Icon,
+  onClick,
+  disabled,
+  className,
+}: {
+  on?: boolean;
+  title: string;
+  icon: LucideIcon;
+  onClick: () => void;
+  disabled?: boolean;
+  className?: string;
+}) => (
   <Button
     size="icon"
     variant="ghost"
     disabled={disabled}
-    className={cn("size-9 shrink-0", on && "bg-primary/15 text-primary ring-1 ring-primary/40")}
+    className={cn("size-9 shrink-0", on && "bg-primary/15 text-primary ring-1 ring-primary/40", className)}
     title={title}
     onClick={onClick}
   >
@@ -120,14 +114,41 @@ const Toggle = ({ on, title, icon: Icon, onClick, disabled }: { on?: boolean; ti
 
 /** Floating drawing toolbar in Sayzo's glass style */
 export const DrawToolbar = () => {
+  useShowWhenReady();
   const { settings, update } = useDrawSettings();
   const [status, setStatus] = useState<CanvasStatus>({ canUndo: false, canRedo: false, count: 0, hidden: false });
   // Drawing opens in mouse mode, so the screen stays usable until a tool is picked
   const [passthrough, setPassthrough] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
-  // Which side popovers open on, decided by where the toolbar sits
-  const [side, setSide] = useState<"top" | "bottom">("top");
-  usePopoverRoom(collapsed, setSide);
+  // Which side popovers open on, decided by where the toolbar sits (docked: below)
+  const [side, setSide] = useState<"top" | "bottom">("bottom");
+
+  // The window hugs the card exactly, and grows for an open popover
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(0);
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+    const fit = () => setWidth(Math.ceil(el.offsetWidth));
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [collapsed]);
+  useEffect(() => {
+    const sync = () => setPopoverOpen(document.querySelectorAll("[data-radix-popper-content-wrapper]").length > 0);
+    const mo = new MutationObserver(sync);
+    mo.observe(document.body, { childList: true, subtree: true });
+    return () => mo.disconnect();
+  }, []);
+  useEffect(() => {
+    if (!width) return;
+    api
+      .drawToolbarSize(width, popoverOpen ? HEIGHT + POPOVER_HEIGHT : HEIGHT)
+      .then((dir) => popoverOpen && setSide(dir === "down" ? "bottom" : "top"))
+      .catch(() => {});
+  }, [width, popoverOpen]);
 
   useEffect(() => {
     const a = listen<CanvasStatus>("draw://status", (e) => setStatus(e.payload));
@@ -164,31 +185,19 @@ export const DrawToolbar = () => {
   }, [settings, update, passthrough, pick]);
 
 
-  const collapse = (on: boolean) => {
-    setCollapsed(on);
-    api.drawToolbarSize(on ? COLLAPSED_WIDTH : WIDTH, HEIGHT).catch(() => {});
-  };
+  const collapse = (on: boolean) => setCollapsed(on);
 
-  const grip = (
-    <Button
-      variant="ghost"
-      size="icon"
-      className="size-9 w-7 shrink-0 cursor-grab px-0 active:cursor-grabbing"
-      title="Drag to move (or drag any empty space)"
-      onMouseDown={(e) => e.button === 0 && getCurrentWindow().startDragging()}
-    >
-      <GripVerticalIcon className="size-5" />
-    </Button>
-  );
+  // Both ends of the toolbar are icon-only (grip dots, ✕), so they're balanced by eye
+  const grip = <Grip onDragStart={() => api.drawUndock()} />;
 
   if (collapsed) {
     return (
       <div className={cn("flex h-screen w-screen justify-center overflow-hidden", side === "top" ? "items-end" : "items-start")}>
-        <Card className="flex w-full flex-row items-center gap-1 p-2.5" onMouseDown={dragFromBlank}>
+        <Card ref={cardRef} className="flex w-fit shrink-0 flex-row items-center gap-1 whitespace-nowrap p-2.5" onMouseDown={dragFromBlank}>
           {grip}
           <div className="size-5 shrink-0 rounded-full ring-2 ring-white/70" style={{ background: settings.color }} title="Current colour" />
           <Toggle on={passthrough} title="Mouse mode (M)" icon={MousePointer2Icon} onClick={() => api.drawSetPassthrough(!passthrough)} />
-          <Toggle title="Show the full toolbar" icon={Maximize2Icon} onClick={() => collapse(false)} />
+          <Toggle className="-mr-2" title="Show the full toolbar" icon={Maximize2Icon} onClick={() => collapse(false)} />
         </Card>
       </div>
     );
@@ -199,7 +208,7 @@ export const DrawToolbar = () => {
 
   return (
     <div className={cn("flex h-screen w-screen justify-center overflow-hidden", side === "top" ? "items-end" : "items-start")}>
-      <Card className="flex w-full flex-row items-center gap-1 p-2.5" onMouseDown={dragFromBlank}>
+      <Card ref={cardRef} className="flex w-fit shrink-0 flex-row items-center gap-1 whitespace-nowrap p-2.5" onMouseDown={dragFromBlank}>
         {grip}
         <Button
           size="icon"
@@ -314,7 +323,7 @@ export const DrawToolbar = () => {
 
         <Toggle title="Screenshot with drawings: copies and saves to Pictures\Sayzo (Ctrl+Shift+C)" icon={CameraIcon} onClick={() => sendCommand("snapshot")} />
         <Toggle title="Make the toolbar small" icon={Minimize2Icon} onClick={() => collapse(true)} />
-        <Button size="icon" variant="ghost" className="size-9 shrink-0 hover:text-destructive" title="Stop drawing (Esc)" onClick={() => api.drawClose()}>
+        <Button size="icon" variant="ghost" className="-mr-2 size-9 shrink-0 hover:text-destructive" title="Stop drawing (Esc)" onClick={() => api.drawClose()}>
           <XIcon className="size-[18px]" />
         </Button>
       </Card>

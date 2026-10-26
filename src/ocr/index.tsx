@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { ScanTextIcon } from "lucide-react";
+import { useShowWhenReady } from "@/hooks";
 import { api } from "@/lib/api";
 
 interface Rect {
@@ -12,6 +13,8 @@ interface Rect {
 
 /** Full-screen layer for dragging a box around text that can't be selected */
 export const ScreenAreaPicker = () => {
+  // Shows itself once painted and takes focus so Esc works
+  useShowWhenReady(true);
   const start = useRef<{ x: number; y: number } | null>(null);
   const [rect, setRect] = useState<Rect | null>(null);
   const [busy, setBusy] = useState(false);

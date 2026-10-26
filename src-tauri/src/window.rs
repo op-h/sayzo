@@ -149,11 +149,19 @@ pub fn open_ocr_overlay(app: AppHandle) -> Result<(), String> {
         .skip_taskbar(true)
         .resizable(false)
         .visible(false)
+        .background_color(tauri::window::Color(0, 0, 0, 0))
         .build()
         .map_err(|e| e.to_string())?;
     let _ = window.set_position(*monitor.position());
     let _ = window.set_size(PhysicalSize::new(monitor.size().width, monitor.size().height));
-    let _ = window.show();
-    let _ = window.set_focus();
+    // The picker shows itself once painted (no white flash); fallback after a moment
+    let w2 = window.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(1500));
+        if !w2.is_visible().unwrap_or(true) {
+            let _ = w2.show();
+            let _ = w2.set_focus();
+        }
+    });
     Ok(())
 }
