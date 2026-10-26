@@ -120,9 +120,12 @@ export const api = {
   setBarWidth: (width: number) => invoke("set_bar_width", { width }),
   drawOpen: () => invoke("draw_open"),
   drawClose: () => invoke("draw_close"),
+  /** Opens drawing, or closes it when it is already open */
+  drawToggle: () => invoke("draw_toggle"),
   drawSetPassthrough: (on: boolean) => invoke("draw_set_passthrough", { on }),
   drawGetState: () => invoke<DrawState>("draw_get_state"),
-  drawToolbarSize: (width: number, height: number) => invoke("draw_toolbar_size", { width, height }),
+  /** Resizes the toolbar; returns which way it grew so popovers open on the side with room */
+  drawToolbarSize: (width: number, height: number) => invoke<"up" | "down">("draw_toolbar_size", { width, height }),
   /** The screen behind the drawing, as PNG bytes */
   drawCaptureScreen: () => invoke<ArrayBuffer>("draw_capture_screen"),
   /** Saves PNG bytes to Pictures\Sayzo and copies them; returns the file path */

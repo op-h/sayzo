@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { emit, listen } from "@tauri-apps/api/event";
 import { api, DrawState } from "@/lib/api";
 import { constrain, hits, recognize } from "./geometry";
-import { CanvasStatus, Command, Element, FADE_MS, handleDrawKey, Point, SHAPES, Shape, useDrawSettings } from "./model";
+import { CanvasStatus, Command, Element, FADE_MS, handleDrawKey, Point, SHAPES, Shape, Tool, useDrawSettings } from "./model";
 import { drawElement, drawLaser, drawSpotlight, FONT, LASER_MS, LaserPoint, textSize } from "./render";
 
 /** Holding the pen still this long turns a scribble into a clean shape */
@@ -32,10 +32,18 @@ export const DrawCanvas = () => {
   const dirty = useRef(true);
   const nextId = useRef(1);
   const [hidden, setHidden] = useState(false);
-  const [passthrough, setPassthrough] = useState(false);
+  // Opens in mouse mode: the screen stays usable until a tool is picked
+  const [passthrough, setPassthrough] = useState(true);
   const [editing, setEditing] = useState<Editing | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
+  // Brief hint whenever the mode changes, so it never sits on screen for long
+  const [modeHint, setModeHint] = useState(false);
+  useEffect(() => {
+    setModeHint(true);
+    const t = window.setTimeout(() => setModeHint(false), 2200);
+    return () => window.clearTimeout(t);
+  }, [passthrough]);
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
   const hiddenRef = useRef(hidden);
@@ -231,8 +239,17 @@ export const DrawCanvas = () => {
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       shift.current = e.shiftKey;
-      if (editing) return;
-      if (handleDrawKey(e, settingsRef.current, update, { exit: () => api.drawClose(), mouseMode: () => api.drawSetPassthrough(true) })) {
+      // While a text box is open, keys are text, never tool shortcuts
+      if (editing) {
+        if (document.activeElement !== textRef.current) textRef.current?.focus();
+        return;
+      }
+      const pickTool = (tool: Tool) => {
+        // Pressing the shortcut of the tool in use goes back to the mouse
+        if (settingsRef.current.tool === tool) api.drawSetPassthrough(true);
+        else update({ tool });
+      };
+      if (handleDrawKey(e, settingsRef.current, update, { exit: () => api.drawClose(), mouseMode: () => api.drawSetPassthrough(true), pickTool })) {
         e.preventDefault();
       }
     };
@@ -382,6 +399,20 @@ export const DrawCanvas = () => {
     dirty.current = true;
   };
 
+  // Activating the canvas window can move focus away right after the box
+  // opens; keep it focused so typing goes into the box
+  useEffect(() => {
+    if (!editing) return;
+    const id = requestAnimationFrame(() => textRef.current?.focus());
+    return () => cancelAnimationFrame(id);
+  }, [editing?.at]);
+
+  // Switching tool or to the mouse closes the box (keeping what was typed)
+  useEffect(() => {
+    if ((settings.tool !== "text" || passthrough) && editing) finishText();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings.tool, passthrough]);
+
   const finishText = (cancel = false) => {
     const t = editing;
     setEditing(null);
@@ -423,7 +454,14 @@ export const DrawCanvas = () => {
               finishText();
             }
           }}
-          onBlur={() => finishText()}
+          onBlur={() => {
+            // An empty box stays open and takes focus back; a filled one is placed
+            if (!editing.value.trim()) {
+              window.setTimeout(() => document.hasFocus() && textRef.current?.focus(), 0);
+              return;
+            }
+            finishText();
+          }}
           onPointerDown={(e) => e.stopPropagation()}
           rows={Math.max(1, editing.value.split("\n").length)}
           placeholder="Type, Enter to place"
@@ -446,9 +484,9 @@ export const DrawCanvas = () => {
           {notice}
         </div>
       )}
-      {passthrough && (
-        <div className="pointer-events-none absolute right-4 top-4 rounded-full bg-neutral-900/80 px-3 py-1 text-xs text-white/80">
-          Mouse mode · your clicks go to the apps below
+      {modeHint && (
+        <div className="pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 rounded-full bg-neutral-900/85 px-3 py-1 text-xs text-white/85 shadow">
+          {passthrough ? "Mouse mode · your apps work normally, drawings stay" : "Drawing · click a tool again or press M for the mouse"}
         </div>
       )}
     </div>

@@ -12,8 +12,8 @@ pub const CANVAS: &str = "draw-canvas";
 pub const TOOLBAR: &str = "draw-toolbar";
 /// Gap between the toolbar and the bottom of the screen
 const TOOLBAR_BOTTOM: f64 = 36.0;
-pub const TOOLBAR_HEIGHT: f64 = 54.0;
-pub const TOOLBAR_WIDTH: f64 = 820.0;
+pub const TOOLBAR_HEIGHT: f64 = 60.0;
+pub const TOOLBAR_WIDTH: f64 = 920.0;
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -51,8 +51,7 @@ fn emit_state(app: &AppHandle, passthrough: bool) {
 /// Opens the canvas over the monitor under the cursor, with the toolbar at its bottom
 pub fn open(app: &AppHandle) -> Result<()> {
     if let Some(c) = canvas(app) {
-        set_passthrough(app, false);
-        let _ = c.set_focus();
+        let _ = c.show();
         return Ok(());
     }
     let monitor = app
@@ -86,7 +85,11 @@ pub fn open(app: &AppHandle) -> Result<()> {
         .resizable(false)
         .focused(false)
         .visible(false)
+        .maximizable(false)
         .inner_size(TOOLBAR_WIDTH, TOOLBAR_HEIGHT)
+        // Owned by the canvas: Windows then always keeps it above the canvas,
+        // even right after the canvas is clicked and activated
+        .parent(&c)?
         .build()?;
     let width = (TOOLBAR_WIDTH * scale) as i32;
     let x = pos.x + (size.width as i32 - width) / 2;
@@ -95,13 +98,13 @@ pub fn open(app: &AppHandle) -> Result<()> {
 
     let _ = c.show();
     let _ = t.show();
-    let _ = c.set_focus();
-    raise_toolbar(app);
-    emit_state(app, false);
+    // Starts in mouse mode: the screen stays live and usable until a tool is picked
+    set_passthrough(app, true);
     Ok(())
 }
 
 pub fn close(app: &AppHandle) {
+    app.state::<DrawMode>().0.store(true, std::sync::atomic::Ordering::SeqCst);
     for w in [toolbar(app), canvas(app)].into_iter().flatten() {
         let _ = w.close();
     }
@@ -110,6 +113,7 @@ pub fn close(app: &AppHandle) {
 
 /// Mouse mode: the canvas ignores the mouse so you can use the apps below
 pub fn set_passthrough(app: &AppHandle, on: bool) {
+    app.state::<DrawMode>().0.store(on, std::sync::atomic::Ordering::SeqCst);
     if let Some(c) = canvas(app) {
         let _ = c.set_ignore_cursor_events(on);
         if !on {
@@ -129,31 +133,43 @@ pub fn hotkey(app: &AppHandle) {
         return;
     }
     let passthrough = app.state::<DrawMode>().0.load(std::sync::atomic::Ordering::SeqCst);
-    app.state::<DrawMode>().0.store(!passthrough, std::sync::atomic::Ordering::SeqCst);
     set_passthrough(app, !passthrough);
 }
 
-/// Remembers whether the canvas is click-through, so the hotkey can flip it
-#[derive(Default)]
+/// Whether the canvas is click-through (mouse mode); the one source of truth
 pub struct DrawMode(pub std::sync::atomic::AtomicBool);
+
+impl Default for DrawMode {
+    fn default() -> Self {
+        Self(std::sync::atomic::AtomicBool::new(true))
+    }
+}
 
 // Window-creating commands must be async: building a window from a
 // synchronous command deadlocks the app on Windows
 #[tauri::command]
 pub async fn draw_open(app: AppHandle) -> Result<(), String> {
-    app.state::<DrawMode>().0.store(false, std::sync::atomic::Ordering::SeqCst);
     open(&app).map_err(|e| e.to_string())
+}
+
+/// The bar's pen button: opens drawing, or closes it if it's already open
+#[tauri::command]
+pub async fn draw_toggle(app: AppHandle) -> Result<(), String> {
+    if is_open(&app) {
+        close(&app);
+        Ok(())
+    } else {
+        open(&app).map_err(|e| e.to_string())
+    }
 }
 
 #[tauri::command]
 pub async fn draw_close(app: AppHandle) {
-    app.state::<DrawMode>().0.store(false, std::sync::atomic::Ordering::SeqCst);
     close(&app);
 }
 
 #[tauri::command]
 pub fn draw_set_passthrough(app: AppHandle, on: bool) {
-    app.state::<DrawMode>().0.store(on, std::sync::atomic::Ordering::SeqCst);
     set_passthrough(&app, on);
 }
 
@@ -162,18 +178,33 @@ pub fn draw_get_state(app: AppHandle) -> DrawState {
     DrawState { open: is_open(&app), passthrough: app.state::<DrawMode>().0.load(std::sync::atomic::Ordering::SeqCst) }
 }
 
-/// Resizes the toolbar (collapsing it, or making room for a popover) while
-/// keeping its bottom-centre anchored, so it grows upwards from where it sits
+/// Whether the toolbar last grew downwards (it sits near the top of the screen)
+static GROWS_DOWN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Resizes the toolbar (collapsing it, or making room for a popover) keeping
+/// it centred. It grows upwards when there's room above, otherwise downwards,
+/// so popovers never go off screen. Returns "up" or "down".
 #[tauri::command]
-pub fn draw_toolbar_size(window: WebviewWindow, width: f64, height: f64) -> Result<(), String> {
+pub fn draw_toolbar_size(window: WebviewWindow, width: f64, height: f64) -> Result<String, String> {
+    use std::sync::atomic::Ordering;
     let scale = window.scale_factor().map_err(|e| e.to_string())?;
     let pos = window.outer_position().map_err(|e| e.to_string())?;
     let old = window.outer_size().map_err(|e| e.to_string())?;
     let (nw, nh) = ((width * scale).round() as i32, (height * scale).round() as i32);
+    let grow = nh - old.height as i32;
+    let down = if grow > 0 {
+        let top = window.current_monitor().ok().flatten().map(|m| m.position().y).unwrap_or(0);
+        let d = pos.y - grow < top;
+        GROWS_DOWN.store(d, Ordering::SeqCst);
+        d
+    } else {
+        GROWS_DOWN.load(Ordering::SeqCst)
+    };
     let x = pos.x + (old.width as i32 - nw) / 2;
-    let y = pos.y + old.height as i32 - nh;
+    let y = if down { pos.y } else { pos.y + old.height as i32 - nh };
     window.set_size(Size::Logical(LogicalSize::new(width, height))).map_err(|e| e.to_string())?;
-    window.set_position(PhysicalPosition::new(x, y)).map_err(|e| e.to_string())
+    window.set_position(PhysicalPosition::new(x, y)).map_err(|e| e.to_string())?;
+    Ok(if down { "down" } else { "up" }.into())
 }
 
 /// Hides both drawing windows for a moment, runs `f` on the bare screen, then shows them again

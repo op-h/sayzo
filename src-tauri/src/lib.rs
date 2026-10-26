@@ -365,6 +365,7 @@ pub fn run() {
             window::set_bar_width,
             draw::draw_open,
             draw::draw_close,
+            draw::draw_toggle,
             draw::draw_set_passthrough,
             draw::draw_get_state,
             draw::draw_toolbar_size,

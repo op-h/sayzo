@@ -13,6 +13,15 @@ All notable changes to Sayzo are documented here. The format follows [Keep a Cha
 - **Screenshot with drawings:** copied to the clipboard and saved to Pictures\Sayzo.
 - Drawing toolbar in Sayzo's glass style, with colour and size picker, that can be collapsed to a small pill and dragged anywhere.
 - **Minimize the floating bar** to a small pill that still shows playback controls while reading.
+- Drawing opens in **mouse mode**, so your screen stays live; pick a tool to draw, click the same tool again to go back to the mouse.
+- Drag either bar from any empty space, not just the grip; both bars are a little bigger.
+
+### Fixed
+- Clicking the drawing area could cover the toolbar, so you couldn't pick another tool.
+- A click on the toolbar could be ignored when the drawing had just changed.
+- Drawing shortcuts didn't work while an Arabic (or any non-English) keyboard layout was active.
+- Typing in a text box could trigger tool shortcuts instead of typing.
+- Popups opened off screen when the toolbar was dragged to the top.
 
 ## [0.2.1] - 2026-10-22
 

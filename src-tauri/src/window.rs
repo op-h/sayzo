@@ -1,7 +1,7 @@
 use crate::settings::Settings;
 use tauri::{AppHandle, LogicalSize, Manager, PhysicalPosition, PhysicalSize, Size, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
-pub const BAR_WIDTH: f64 = 600.0;
+pub const BAR_WIDTH: f64 = 660.0;
 /// Distance from the top of the screen to the floating bar
 const TOP_OFFSET: i32 = 54;
 

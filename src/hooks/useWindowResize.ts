@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { api } from "@/lib/api";
 
-const BAR_HEIGHT = 54;
+const BAR_HEIGHT = 58;
 const EXPANDED_HEIGHT = 600;
 
 const isAnyPopoverOpen = () => document.querySelectorAll("[data-radix-popper-content-wrapper]").length > 0;

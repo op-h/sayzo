@@ -24,8 +24,13 @@ import { ReadingPanel } from "./ReadingPanel";
 import { QuickSettings } from "./QuickSettings";
 
 /** Width of the minimized bar, in logical pixels */
-const COMPACT_WIDTH = 206;
-const FULL_WIDTH = 600;
+const COMPACT_WIDTH = 232;
+const FULL_WIDTH = 660;
+
+/** Lets any empty part of the bar drag the window (buttons keep working) */
+const dragFromBlank = (e: React.MouseEvent) => {
+  if (e.button === 0 && e.target === e.currentTarget) getCurrentWindow().startDragging();
+};
 
 export const Bar = () => {
   useWindowResize();
@@ -72,13 +77,13 @@ export const Bar = () => {
     <Button
       variant="ghost"
       size="icon"
-      className="-ml-[2px] w-fit"
-      title="Drag to move"
+      className="-ml-[2px] w-7 shrink-0 cursor-grab active:cursor-grabbing"
+      title="Drag to move (or drag any empty space)"
       onMouseDown={(e) => {
         if (e.button === 0) getCurrentWindow().startDragging();
       }}
     >
-      <GripVerticalIcon className="h-4 w-4" />
+      <GripVerticalIcon className="size-5" />
     </Button>
   );
 
@@ -96,7 +101,7 @@ export const Bar = () => {
   if (compact) {
     return (
       <div className="w-screen h-screen flex overflow-hidden justify-center items-start">
-        <Card className="w-full flex flex-row items-center gap-2 p-2">
+        <Card className="w-full flex flex-row items-center gap-2 p-2.5" onMouseDown={dragFromBlank}>
           <Button size="icon" title="Show the full bar" onClick={() => setCompact(false)}>
             {busy && reader.status !== "loading" ? <Visualizer active={!paused} paused={paused} /> : <AudioLinesIcon className="h-4 w-4" />}
           </Button>
@@ -112,7 +117,7 @@ export const Bar = () => {
           ) : (
             <>
               {autoReadButton}
-              <Button size="icon" title="Draw on screen (Ctrl+Alt+D)" onClick={() => api.drawOpen()}>
+              <Button size="icon" title="Draw on screen (Ctrl+Alt+D). Click again to stop." onClick={() => api.drawToggle()}>
                 <PenLineIcon className="h-4 w-4" />
               </Button>
             </>
@@ -125,7 +130,7 @@ export const Bar = () => {
 
   return (
     <div className="w-screen h-screen flex overflow-hidden justify-center items-start">
-      <Card className="w-full flex flex-row items-center gap-2 p-2">
+      <Card className="w-full flex flex-row items-center gap-2 p-2.5" onMouseDown={dragFromBlank}>
         {autoReadButton}
 
         <Popover open={panelOpen} onOpenChange={setPanelOpen}>
@@ -203,7 +208,7 @@ export const Bar = () => {
             <Button size="icon" title="Read text from a screen area (images, videos, scanned PDFs)" onClick={() => api.openScreenReader()}>
               <ScanTextIcon className="h-4 w-4" />
             </Button>
-            <Button size="icon" title="Draw on screen (Ctrl+Alt+D)" onClick={() => api.drawOpen()}>
+            <Button size="icon" title="Draw on screen (Ctrl+Alt+D). Click again to stop." onClick={() => api.drawToggle()}>
               <PenLineIcon className="h-4 w-4" />
             </Button>
             <QuickSettings settings={settings} update={update} />

@@ -84,6 +84,8 @@ All shortcuts can be changed in **Dashboard → Shortcuts**.
 
 ## Drawing shortcuts
 
+Drawing starts in mouse mode, so your apps keep working. Pick a tool to draw, and click it again (or press `M`) to go back to the mouse. Shortcuts work on any keyboard layout.
+
 While drawing: `P` pen · `H` highlighter · `K` laser · `L` line · `A` arrow · `R` rectangle · `O` ellipse · `T` text · `N` numbered steps · `E` eraser · `S` read aloud · `1`–`9` colours · `[` `]` size · `W` whiteboard · `B` blackboard · `F` fading ink · `G` spotlight · `V` hide drawings · `M` mouse mode · `Ctrl+Z` / `Ctrl+Y` undo / redo · `Delete` clear · `Ctrl+Shift+C` screenshot · `Esc` stop. Hold `Shift` for straight lines and perfect squares.
 
 ## Build from source

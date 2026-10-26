@@ -14,8 +14,8 @@
       {
         "label": "main",
         "title": "Sayzo",
-        "width": 600,
-        "height": 54,
+        "width": 660,
+        "height": 58,
         "decorations": false,
         "transparent": true,
         "alwaysOnTop": true,

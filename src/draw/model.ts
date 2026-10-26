@@ -96,19 +96,23 @@ export const useDrawSettings = () => {
 
 export const sendCommand = (cmd: Command) => emit("draw://command", cmd);
 
-/** Single-key shortcuts while drawing; the same in both windows */
+/**
+ * Single-key shortcuts while drawing, by physical key (KeyboardEvent.code),
+ * so they work with any keyboard layout: an Arabic layout types "ق" on the R
+ * key, but its code is still "KeyR".
+ */
 export const KEY_TOOLS: Record<string, Tool> = {
-  p: "pen",
-  h: "highlighter",
-  k: "laser",
-  l: "line",
-  a: "arrow",
-  r: "rect",
-  o: "ellipse",
-  t: "text",
-  n: "number",
-  e: "eraser",
-  s: "read",
+  KeyP: "pen",
+  KeyH: "highlighter",
+  KeyK: "laser",
+  KeyL: "line",
+  KeyA: "arrow",
+  KeyR: "rect",
+  KeyO: "ellipse",
+  KeyT: "text",
+  KeyN: "number",
+  KeyE: "eraser",
+  KeyS: "read",
 };
 
 export const TOOL_LABELS: Record<Tool, string> = {
@@ -133,27 +137,30 @@ export const handleDrawKey = (
   e: KeyboardEvent,
   settings: DrawSettings,
   update: (p: Partial<DrawSettings>) => void,
-  actions: { exit: () => void; mouseMode: () => void }
+  actions: { exit: () => void; mouseMode: () => void; pickTool: (tool: Tool) => void }
 ): boolean => {
-  const key = e.key.toLowerCase();
-  if (e.ctrlKey && key === "z") return sendCommand(e.shiftKey ? "redo" : "undo"), true;
-  if (e.ctrlKey && key === "y") return sendCommand("redo"), true;
-  if (e.ctrlKey && key === "c" && e.shiftKey) return sendCommand("snapshot"), true;
+  // Physical keys, so shortcuts work whatever keyboard language is active
+  const code = e.code;
+  if (e.ctrlKey && code === "KeyZ") return sendCommand(e.shiftKey ? "redo" : "undo"), true;
+  if (e.ctrlKey && code === "KeyY") return sendCommand("redo"), true;
+  if (e.ctrlKey && code === "KeyC" && e.shiftKey) return sendCommand("snapshot"), true;
   if (e.ctrlKey || e.altKey || e.metaKey) return false;
-  if (key === "escape") return actions.exit(), true;
-  if (key === "delete" || key === "backspace") return sendCommand("clear"), true;
-  if (key === "m") return actions.mouseMode(), true;
-  if (key === "w") return update({ board: settings.board === "white" ? "none" : "white" }), true;
-  if (key === "b") return update({ board: settings.board === "black" ? "none" : "black" }), true;
-  if (key === "f") return update({ fade: !settings.fade }), true;
-  if (key === "g") return update({ spotlight: !settings.spotlight }), true;
-  if (key === "v") return sendCommand("toggle-ink"), true;
-  if (/^[1-9]$/.test(key)) return update({ color: COLORS[Number(key) - 1] }), true;
-  if (key === "[" || key === "]") {
+  if (code === "Escape") return actions.exit(), true;
+  if (code === "Delete" || code === "Backspace") return sendCommand("clear"), true;
+  if (code === "KeyM") return actions.mouseMode(), true;
+  if (code === "KeyW") return update({ board: settings.board === "white" ? "none" : "white" }), true;
+  if (code === "KeyB") return update({ board: settings.board === "black" ? "none" : "black" }), true;
+  if (code === "KeyF") return update({ fade: !settings.fade }), true;
+  if (code === "KeyG") return update({ spotlight: !settings.spotlight }), true;
+  if (code === "KeyV") return sendCommand("toggle-ink"), true;
+  const digit = /^(?:Digit|Numpad)([1-9])$/.exec(code);
+  if (digit) return update({ color: COLORS[Number(digit[1]) - 1] }), true;
+  if (code === "BracketLeft" || code === "BracketRight") {
     const i = SIZES.indexOf(settings.size);
-    return update({ size: SIZES[Math.min(SIZES.length - 1, Math.max(0, i + (key === "]" ? 1 : -1)))] }), true;
+    return update({ size: SIZES[Math.min(SIZES.length - 1, Math.max(0, i + (code === "BracketRight" ? 1 : -1)))] }), true;
   }
-  const tool = KEY_TOOLS[key];
-  if (tool) return update({ tool }), true;
+  // Same as clicking the tool: starts drawing, or returns to the mouse if it's already in use
+  const tool = KEY_TOOLS[code];
+  if (tool) return actions.pickTool(tool), true;
   return false;
 };
