@@ -18,6 +18,8 @@ Designed and developed by [**OPH**](https://github.com/op-h)
 <br />
 
 <img src="docs/screenshots/bar.png" width="600" alt="Sayzo floating bar" />
+<br />
+<img src="docs/screenshots/bar-mini.png" width="156" alt="Sayzo mini bar" />
 
 </div>
 
@@ -45,6 +47,10 @@ Sayzo is a small glass bar that floats at the top of your screen. Select text in
 - **Desktop extras.** Follows your audio device, keeps a history, sits in the tray, can launch at startup, can hide from screen sharing, and has fully customizable shortcuts plus light, dark and transparent themes.
 
 ## Screenshots
+
+**Draw on screen**, with the drawing toolbar docked under the voice bar:
+
+<img src="docs/screenshots/drawing.png" width="720" alt="Drawing on screen with Sayzo" />
 
 | Home | Voices |
 |---|---|
