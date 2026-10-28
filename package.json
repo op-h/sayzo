@@ -1,7 +1,7 @@
 {
   "name": "sayzo",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Select any text on screen and hear it read aloud with natural offline voices",
   "license": "GPL-3.0",
   "author": "OPH (https://github.com/op-h)",

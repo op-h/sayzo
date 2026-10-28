@@ -2,7 +2,7 @@
 
 All notable changes to Sayzo are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.3.1] - 2026-10-28
 
 ### Fixed
 - After Sayzo had been running for a while, **Draw on screen** and **Read a screen area** could stop opening, with no message, until Sayzo was restarted. This happened when Windows updated the WebView2 runtime in the background. Sayzo now stays on the WebView2 version it started with, and if a window still can't open, it restarts itself and opens what you asked for.
