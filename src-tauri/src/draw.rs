@@ -121,6 +121,13 @@ fn emit_state(app: &AppHandle, passthrough: bool) {
     let _ = app.emit("draw://state", DrawState { open: is_open(app), passthrough });
 }
 
+/// Opens drawing, recovering if its windows can't be created
+pub fn start(app: &AppHandle) {
+    if let Err(e) = open(app) {
+        crate::window::recover(app, "draw", &e.to_string());
+    }
+}
+
 /// Opens the canvas over the monitor under the cursor, with the toolbar at its bottom
 pub fn open(app: &AppHandle) -> Result<()> {
     if let Some(c) = canvas(app) {
@@ -150,7 +157,7 @@ pub fn open(app: &AppHandle) -> Result<()> {
     let _ = c.set_position(pos);
     let _ = c.set_size(size);
 
-    let t = WebviewWindowBuilder::new(app, TOOLBAR, WebviewUrl::App("index.html".into()))
+    let toolbar = WebviewWindowBuilder::new(app, TOOLBAR, WebviewUrl::App("index.html".into()))
         .title("Sayzo – drawing tools")
         .decorations(false)
         .transparent(true)
@@ -165,8 +172,16 @@ pub fn open(app: &AppHandle) -> Result<()> {
         .inner_size(TOOLBAR_WIDTH, TOOLBAR_HEIGHT)
         // Owned by the canvas: Windows then always keeps it above the canvas,
         // even right after the canvas is clicked and activated
-        .parent(&c)?
-        .build()?;
+        .parent(&c)
+        .and_then(|b| b.build());
+    // Never leave a canvas without its toolbar: it would cover the screen with no way to close it
+    let t = match toolbar {
+        Ok(t) => t,
+        Err(e) => {
+            let _ = c.destroy();
+            return Err(e.into());
+        }
+    };
     // Docked under the voice bar when it's on screen, otherwise at the bottom
     let tsize = PhysicalSize::new((TOOLBAR_WIDTH * scale) as u32, (TOOLBAR_HEIGHT * scale) as u32);
     match dock_position(app, tsize) {
@@ -224,9 +239,7 @@ pub fn set_passthrough(app: &AppHandle, on: bool) {
 /// The drawing hotkey: start drawing, or flip between drawing and mouse mode
 pub fn hotkey(app: &AppHandle) {
     if !is_open(app) {
-        if let Err(e) = open(app) {
-            shortcuts::toast(app, &e.to_string());
-        }
+        start(app);
         return;
     }
     let passthrough = app.state::<DrawMode>().0.load(std::sync::atomic::Ordering::SeqCst);
@@ -245,18 +258,17 @@ impl Default for DrawMode {
 // Window-creating commands must be async: building a window from a
 // synchronous command deadlocks the app on Windows
 #[tauri::command]
-pub async fn draw_open(app: AppHandle) -> Result<(), String> {
-    open(&app).map_err(|e| e.to_string())
+pub async fn draw_open(app: AppHandle) {
+    start(&app);
 }
 
 /// The bar's pen button: opens drawing, or closes it if it's already open
 #[tauri::command]
-pub async fn draw_toggle(app: AppHandle) -> Result<(), String> {
+pub async fn draw_toggle(app: AppHandle) {
     if is_open(&app) {
         close(&app);
-        Ok(())
     } else {
-        open(&app).map_err(|e| e.to_string())
+        start(&app);
     }
 }
 

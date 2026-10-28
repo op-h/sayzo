@@ -271,10 +271,10 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
                 shortcuts::set_auto_read(app, on);
             }
             "ocr" => {
-                let _ = window::open_ocr_overlay(app.clone());
+                window::open_ocr(app.clone());
             }
             "draw" => {
-                let _ = draw::open(app);
+                draw::start(app);
             }
             "dashboard" => {
                 let _ = window::open_dashboard(app.clone());
@@ -316,6 +316,7 @@ fn start_auto_read(app: &AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    window::pin_webview_runtime();
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             window::show_main(app);
@@ -402,6 +403,7 @@ pub fn run() {
                 eprintln!("shortcuts not registered: {failed:?}");
             }
             start_auto_read(&handle);
+            window::open_after_restart(&handle);
 
             // Load the voice models in the background so the first read starts instantly
             std::thread::spawn(move || {

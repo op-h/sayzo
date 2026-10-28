@@ -1,9 +1,74 @@
 use crate::settings::Settings;
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{AppHandle, LogicalSize, Manager, PhysicalPosition, PhysicalSize, Size, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
 pub const BAR_WIDTH: f64 = 660.0;
 /// Distance from the top of the screen to the floating bar
 const TOP_OFFSET: i32 = 54;
+
+const RUNTIME_VAR: &str = "WEBVIEW2_BROWSER_EXECUTABLE_FOLDER";
+/// Set on a restart that recovers from a window that couldn't be created:
+/// what to open once the fresh instance is up
+const OPEN_AFTER_RESTART: &str = "SAYZO_OPEN_AFTER_RESTART";
+static PINNED: AtomicBool = AtomicBool::new(false);
+static RECOVERED: AtomicBool = AtomicBool::new(false);
+
+/// WebView2 updates itself in the background. Every new Sayzo window asks for
+/// the newest installed version, and WebView2 refuses to start it while the
+/// version Sayzo launched with is still running for the same data folder
+/// ("failed to create webview"), so drawing and the area picker stopped
+/// opening after an update. Pinning this process to the version it starts
+/// with keeps every window on one runtime; updates apply on the next start.
+pub fn pin_webview_runtime() {
+    if std::env::var_os(RUNTIME_VAR).is_some() {
+        return;
+    }
+    let Ok(version) = tauri::webview_version() else { return };
+    let roots = ["ProgramFiles(x86)", "ProgramFiles", "LOCALAPPDATA"].into_iter().filter_map(std::env::var_os);
+    for root in roots {
+        let dir = PathBuf::from(root).join(r"Microsoft\EdgeWebView\Application").join(&version);
+        if dir.join("msedgewebview2.exe").exists() {
+            std::env::set_var(RUNTIME_VAR, &dir);
+            PINNED.store(true, Ordering::SeqCst);
+            return;
+        }
+    }
+}
+
+/// A window couldn't be created, which means WebView2 can't start new pages in
+/// this process any more. Restart Sayzo on the current runtime and open the
+/// same thing there; if this instance is already such a restart, just report it.
+pub fn recover(app: &AppHandle, action: &str, error: &str) {
+    if RECOVERED.load(Ordering::SeqCst) || !error.contains("webview") {
+        crate::shortcuts::toast(app, error);
+        return;
+    }
+    eprintln!("restarting after a window failed to open: {error}");
+    // The restarted process inherits this environment
+    if PINNED.load(Ordering::SeqCst) {
+        std::env::remove_var(RUNTIME_VAR);
+    }
+    std::env::set_var(OPEN_AFTER_RESTART, action);
+    app.request_restart();
+}
+
+/// Finishes a recovery restart by opening what the user asked for
+pub fn open_after_restart(app: &AppHandle) {
+    let Some(action) = std::env::var(OPEN_AFTER_RESTART).ok() else { return };
+    std::env::remove_var(OPEN_AFTER_RESTART);
+    RECOVERED.store(true, Ordering::SeqCst);
+    let app = app.clone();
+    std::thread::spawn(move || {
+        // Let the bar finish loading first
+        std::thread::sleep(std::time::Duration::from_millis(800));
+        match action.as_str() {
+            "draw" => crate::draw::start(&app),
+            "ocr" => open_ocr(app),
+            _ => {}
+        }
+    });
+}
 
 pub fn main_window(app: &AppHandle) -> Option<WebviewWindow> {
     app.get_webview_window("main")
@@ -124,12 +189,19 @@ pub async fn toggle_dashboard_command(app: AppHandle) -> Result<(), String> {
 /// Opens a transparent full-screen layer on the monitor under the cursor
 /// where the user drags a rectangle around the text to read
 #[tauri::command]
-pub async fn open_ocr_overlay_command(app: AppHandle) -> Result<(), String> {
-    open_ocr_overlay(app)
+pub async fn open_ocr_overlay_command(app: AppHandle) {
+    open_ocr(app)
+}
+
+/// Opens the area picker, recovering if its window can't be created
+pub fn open_ocr(app: AppHandle) {
+    if let Err(e) = open_ocr_overlay(app.clone()) {
+        recover(&app, "ocr", &e);
+    }
 }
 
 /// Covers the monitor under the cursor with the area picker
-pub fn open_ocr_overlay(app: AppHandle) -> Result<(), String> {
+fn open_ocr_overlay(app: AppHandle) -> Result<(), String> {
     if let Some(w) = app.get_webview_window("ocr-overlay") {
         let _ = w.set_focus();
         return Ok(());
