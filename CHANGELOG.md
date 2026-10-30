@@ -2,6 +2,12 @@
 
 All notable changes to Sayzo are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.3.2] - 2026-10-30
+
+### Fixed
+- The British English voices (Emma, Isabella, Alice, Lily, George, Fable, Daniel and Lewis) read nothing. The speech engine was asked for an "en-gb" voice that its phoneme data doesn't have, so every sentence failed silently. They now speak normally.
+- The dashboard could open as a blank white window, or come back blank after being minimized. Sayzo now makes it redraw every time it's opened or restored, and any moment before it's drawn shows the theme's background instead of a white sheet.
+
 ## [0.3.1] - 2026-10-28
 
 ### Fixed
@@ -74,6 +80,8 @@ First public release.
 - WAV export, reading history, tray menu, launch at startup, hide from screen sharing.
 - Customizable global shortcuts, themes and transparency.
 
+[0.3.2]: https://github.com/op-h/sayzo/releases/tag/v0.3.2
+[0.3.1]: https://github.com/op-h/sayzo/releases/tag/v0.3.1
 [0.3.0]: https://github.com/op-h/sayzo/releases/tag/v0.3.0
 [0.2.1]: https://github.com/op-h/sayzo/releases/tag/v0.2.1
 [0.2.0]: https://github.com/op-h/sayzo/releases/tag/v0.2.0

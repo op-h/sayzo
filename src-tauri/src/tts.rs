@@ -95,6 +95,16 @@ fn kokoro_lang(sid: i32) -> &'static str {
     }
 }
 
+/// espeak-ng has no voice named "en-gb" (British English is its plain "en"),
+/// so asking for it fails every sentence and British voices read nothing
+fn espeak_voice(lang: &str) -> &str {
+    if lang.eq_ignore_ascii_case("en-gb") {
+        "en"
+    } else {
+        lang
+    }
+}
+
 /// Which voice reads which language for one read
 #[derive(Clone, Default)]
 pub struct VoicePlan {
@@ -289,7 +299,7 @@ impl Engines {
                     tokens: path_str(&dir.join("tokens.txt")),
                     data_dir: path_str(&self.espeak_for(dir)),
                     lexicon: lexicon.as_deref().and_then(path_str),
-                    lang: Some(lang.clone()),
+                    lang: Some(espeak_voice(lang).into()),
                     ..Default::default()
                 };
             }
@@ -462,6 +472,16 @@ mod tests {
             let mut w = hound::WavWriter::create(out.join(format!("sayzo-{name}.wav")), spec).unwrap();
             all.iter().for_each(|x| w.write_sample((x.clamp(-1.0, 1.0) * 32767.0) as i16).unwrap());
             w.finalize().unwrap();
+        }
+    }
+
+    /// Every built-in voice must produce sound, not just the default one
+    #[test]
+    #[ignore = "needs the voice models; run with --ignored"]
+    fn every_builtin_voice_speaks() {
+        let e = engines();
+        for v in e.voices().into_iter().filter(|v| !v.imported) {
+            e.test_voice(&v.id).unwrap_or_else(|err| panic!("{} ({} {}): {err}", v.name, v.accent, v.id));
         }
     }
 

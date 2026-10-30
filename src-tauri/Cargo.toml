@@ -1,6 +1,6 @@
 [package]
 name = "sayzo"
-version = "0.3.1"
+version = "0.3.2"
 description = "Select any text on screen and hear it read aloud with natural offline voices"
 authors = ["OPH"]
 license = "GPL-3.0"
@@ -37,6 +37,8 @@ whatlang = "0.18"
 tauri-plugin-dialog = "2"
 
 [target.'cfg(windows)'.dependencies]
+# Same version Tauri uses; reaches the dashboard's WebView2 controller
+webview2-com = "0.39"
 windows = { version = "0.61", features = [
   "Foundation",
   "Foundation_Collections",

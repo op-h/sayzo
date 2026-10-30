@@ -1,8 +1,11 @@
 import { createContext, useContext, useEffect, useState } from "react";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 
 export type Theme = "dark" | "light" | "system";
 
 const THEME_KEY = "sayzo-theme";
+/** --background of each theme, for the parts of a window the page hasn't painted */
+const UNPAINTED: Record<"light" | "dark", [number, number, number, number]> = { light: [255, 255, 255, 255], dark: [10, 10, 10, 255] };
 const TRANSPARENCY_KEY = "sayzo-transparency";
 
 interface ThemeState {
@@ -53,8 +56,16 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const root = document.documentElement;
     const media = window.matchMedia("(prefers-color-scheme: dark)");
     const apply = () => {
+      const mode = theme === "system" ? (media.matches ? "dark" : "light") : theme;
       root.classList.remove("light", "dark");
-      root.classList.add(theme === "system" ? (media.matches ? "dark" : "light") : theme);
+      root.classList.add(mode);
+      // The dashboard's page is transparent, so whenever WebView2 shows it
+      // before painting (e.g. restoring it after a long minimize) the window
+      // was a blank white sheet. Match the window behind it to the theme
+      const win = getCurrentWebviewWindow();
+      if (win.label === "dashboard") {
+        win.setBackgroundColor(UNPAINTED[mode]).catch(() => {});
+      }
     };
     apply();
     media.addEventListener("change", apply);

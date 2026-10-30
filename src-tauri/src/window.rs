@@ -143,13 +143,32 @@ fn dashboard(app: &AppHandle) -> tauri::Result<WebviewWindow> {
         .build()?;
     // Closing only hides it, so reopening is instant and keeps its state
     let w = window.clone();
-    window.on_window_event(move |event| {
-        if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+    window.on_window_event(move |event| match event {
+        tauri::WindowEvent::CloseRequested { api, .. } => {
             api.prevent_close();
             let _ = w.hide();
         }
+        // Coming back from minimized
+        tauri::WindowEvent::Resized(size) if size.width > 0 && DASHBOARD_AWAY.swap(false, Ordering::SeqCst) => wake(&w),
+        tauri::WindowEvent::Resized(_) if w.is_minimized().unwrap_or(false) => DASHBOARD_AWAY.store(true, Ordering::SeqCst),
+        _ => {}
     });
     Ok(window)
+}
+
+/// Set while the dashboard is minimized
+static DASHBOARD_AWAY: AtomicBool = AtomicBool::new(false);
+
+/// WebView2 can come back from a hidden or minimized window as a blank white
+/// page until something forces a redraw. Switching the page's visibility off
+/// and on makes it draw a fresh frame right away
+fn wake(window: &WebviewWindow) {
+    #[cfg(windows)]
+    let _ = window.with_webview(|webview| unsafe {
+        let controller = webview.controller();
+        let _ = controller.SetIsVisible(false);
+        let _ = controller.SetIsVisible(true);
+    });
 }
 
 pub fn create_dashboard(app: &AppHandle) {
@@ -162,6 +181,7 @@ pub fn open_dashboard(app: AppHandle) -> Result<(), String> {
     let w = dashboard(&app).map_err(|e| e.to_string())?;
     let _ = w.show();
     let _ = w.unminimize();
+    wake(&w);
     w.set_focus().map_err(|e| e.to_string())
 }
 

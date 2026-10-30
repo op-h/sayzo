@@ -10,6 +10,8 @@
     "core:window:allow-show",
     "core:window:allow-close",
     "core:window:allow-set-focus",
+    "core:window:allow-set-background-color",
+    "core:webview:allow-set-webview-background-color",
     "dialog:allow-open"
   ]
 }
