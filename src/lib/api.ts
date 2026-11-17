@@ -114,7 +114,9 @@ export const api = {
   getVersion: () => invoke<string>("get_app_version"),
   exit: () => invoke("exit_app"),
   openAuthorPage: () => invoke("open_author_page"),
-  setWindowHeight: (height: number) => invoke("set_window_height", { height }),
+  setWindowHeight: (height: number, up = false) => invoke("set_window_height", { height, up }),
+  /** The bar is in the lower half of its screen: its panel and popovers open upwards */
+  barGrowsUp: (up: boolean) => invoke<boolean>("bar_grows_up", { up }),
   openDashboard: () => invoke("open_dashboard_command"),
   openScreenReader: () => invoke("open_ocr_overlay_command"),
   setBarWidth: (width: number) => invoke("set_bar_width", { width }),
@@ -122,12 +124,9 @@ export const api = {
   drawClose: () => invoke("draw_close"),
   /** Opens drawing, or closes it when it is already open */
   drawToggle: () => invoke("draw_toggle"),
-  /** Stops the toolbar following the voice bar (after the user moves it) */
-  drawUndock: () => invoke("draw_undock"),
+  /** Mouse mode: clicks go through the drawing to the apps below */
   drawSetPassthrough: (on: boolean) => invoke("draw_set_passthrough", { on }),
   drawGetState: () => invoke<DrawState>("draw_get_state"),
-  /** Resizes the toolbar; returns which way it grew so popovers open on the side with room */
-  drawToolbarSize: (width: number, height: number) => invoke<"up" | "down">("draw_toolbar_size", { width, height }),
   /** The screen behind the drawing, as PNG bytes */
   drawCaptureScreen: () => invoke<ArrayBuffer>("draw_capture_screen"),
   /** Saves PNG bytes to Pictures\Sayzo and copies them; returns the file path */

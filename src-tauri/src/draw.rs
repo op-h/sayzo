@@ -1,29 +1,16 @@
-//! Screen drawing: a transparent full-screen canvas for ink plus a floating
-//! toolbar, in two windows so the canvas can turn click-through ("mouse
-//! mode") while the toolbar stays usable.
+//! Screen drawing: a transparent full-screen canvas for ink. Its tools live
+//! in the voice bar, a separate window, so the canvas can turn click-through
+//! ("mouse mode") while the tools stay usable.
 
 use crate::{ocr, reader::Reader, shortcuts};
 use anyhow::{anyhow, Result};
 use serde::Serialize;
 use tauri::ipc::{InvokeBody, Request, Response};
-use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, PhysicalSize, Size, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, PhysicalSize, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
 pub const CANVAS: &str = "draw-canvas";
-pub const TOOLBAR: &str = "draw-toolbar";
-/// Gap between the toolbar and the bottom of the screen (when not docked)
-const TOOLBAR_BOTTOM: f64 = 36.0;
-/// Gap between the main bar and the drawing toolbar docked under it
-const DOCK_GAP: f64 = 8.0;
-/// Extra height the toolbar window takes while a popover is open (matches the frontend)
-const POPOVER_ROOM: f64 = 330.0;
-
-/// The toolbar is docked under the main bar and follows it; dragging it away undocks it
-static DOCKED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
-/// Card height: 36 px buttons, 10 px padding each side and a 1 px border
-pub const TOOLBAR_HEIGHT: f64 = 58.0;
-/// Starting width; the toolbar then measures its card and fits it exactly
-pub const TOOLBAR_WIDTH: f64 = 903.0;
-
+/// The voice bar was hidden when drawing started and was shown for its tools
+static BAR_SHOWN_FOR_DRAWING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DrawState {
@@ -34,60 +21,6 @@ pub struct DrawState {
 
 fn canvas(app: &AppHandle) -> Option<WebviewWindow> {
     app.get_webview_window(CANVAS)
-}
-
-fn toolbar(app: &AppHandle) -> Option<WebviewWindow> {
-    app.get_webview_window(TOOLBAR)
-}
-
-/// Where the toolbar sits when docked: centred just under the main bar, or
-/// just above it when the bar is too close to the bottom of the screen.
-/// It's also kept inside the screen horizontally.
-fn dock_position(app: &AppHandle, toolbar_size: PhysicalSize<u32>) -> Option<PhysicalPosition<i32>> {
-    let bar = crate::window::main_window(app)?;
-    if !bar.is_visible().unwrap_or(false) {
-        return None;
-    }
-    let (pos, size, scale) = (bar.outer_position().ok()?, bar.outer_size().ok()?, bar.scale_factor().ok()?);
-    let gap = (DOCK_GAP * scale).round() as i32;
-    let (tw, th) = (toolbar_size.width as i32, (TOOLBAR_HEIGHT * scale).round() as i32);
-    let mut x = pos.x + (size.width as i32 - tw) / 2;
-    let below = pos.y + size.height as i32 + gap;
-    let mut y = below;
-    if let Some(m) = bar.current_monitor().ok().flatten() {
-        // The usable area excludes the taskbar
-        let wa = m.work_area();
-        let (mx, my, mw, mh) = (wa.position.x, wa.position.y, wa.size.width as i32, wa.size.height as i32);
-        // Below needs room for the toolbar *and* an open popover, so a popover
-        // never runs off screen and the toolbar never jumps sides when one opens.
-        // Placed using its current height, so a grown toolbar ends right above the bar.
-        let room = th + (POPOVER_ROOM * scale).round() as i32;
-        if below + room > my + mh && pos.y - gap - room >= my {
-            y = pos.y - gap - toolbar_size.height as i32;
-        }
-        x = x.clamp(mx, (mx + mw - tw).max(mx));
-    }
-    Some(PhysicalPosition::new(x, y))
-}
-
-/// Whether the docked toolbar sits above the bar (the bar is near the bottom)
-fn docked_above(app: &AppHandle) -> bool {
-    match (crate::window::main_window(app), toolbar(app)) {
-        (Some(b), Some(t)) => matches!((b.outer_position(), t.outer_position()), (Ok(bp), Ok(tp)) if tp.y < bp.y),
-        _ => false,
-    }
-}
-
-/// Keeps a docked toolbar under the main bar when the bar moves or resizes
-pub fn follow_bar(app: &AppHandle) {
-    if !DOCKED.load(std::sync::atomic::Ordering::SeqCst) {
-        return;
-    }
-    if let Some(t) = toolbar(app) {
-        if let Some(p) = t.outer_size().ok().and_then(|s| dock_position(app, s)) {
-            let _ = t.set_position(p);
-        }
-    }
 }
 
 /// While drawing is open, the main bar is owned by the canvas so Windows
@@ -108,11 +41,6 @@ fn set_bar_owner(app: &AppHandle, owner: Option<&WebviewWindow>) {
 #[cfg(not(windows))]
 fn set_bar_owner(_app: &AppHandle, _owner: Option<&WebviewWindow>) {}
 
-#[tauri::command]
-pub fn draw_undock() {
-    DOCKED.store(false, std::sync::atomic::Ordering::SeqCst);
-}
-
 pub fn is_open(app: &AppHandle) -> bool {
     canvas(app).is_some()
 }
@@ -128,7 +56,7 @@ pub fn start(app: &AppHandle) {
     }
 }
 
-/// Opens the canvas over the monitor under the cursor, with the toolbar at its bottom
+/// Opens the canvas over the monitor under the cursor; the voice bar grows its drawing tools
 pub fn open(app: &AppHandle) -> Result<()> {
     if let Some(c) = canvas(app) {
         let _ = c.show();
@@ -140,7 +68,7 @@ pub fn open(app: &AppHandle) -> Result<()> {
         .and_then(|p| app.monitor_from_point(p.x, p.y).ok().flatten())
         .or_else(|| app.primary_monitor().ok().flatten())
         .ok_or_else(|| anyhow!("no monitor found"))?;
-    let (pos, size, scale) = (*monitor.position(), *monitor.size(), monitor.scale_factor());
+    let (pos, size) = (*monitor.position(), *monitor.size());
 
     let c = WebviewWindowBuilder::new(app, CANVAS, WebviewUrl::App("index.html".into()))
         .title("Sayzo – drawing")
@@ -153,61 +81,25 @@ pub fn open(app: &AppHandle) -> Result<()> {
         .visible(false)
         // Transparent from the first frame: no white flash while the page loads
         .background_color(tauri::window::Color(0, 0, 0, 0))
+        .content_protected(crate::window::hide_from_capture(app))
         .build()?;
     let _ = c.set_position(pos);
     let _ = c.set_size(size);
 
-    let toolbar = WebviewWindowBuilder::new(app, TOOLBAR, WebviewUrl::App("index.html".into()))
-        .title("Sayzo – drawing tools")
-        .decorations(false)
-        .transparent(true)
-        .shadow(false)
-        .always_on_top(true)
-        .skip_taskbar(true)
-        .resizable(false)
-        .focused(false)
-        .visible(false)
-        .background_color(tauri::window::Color(0, 0, 0, 0))
-        .maximizable(false)
-        .inner_size(TOOLBAR_WIDTH, TOOLBAR_HEIGHT)
-        // Owned by the canvas: Windows then always keeps it above the canvas,
-        // even right after the canvas is clicked and activated
-        .parent(&c)
-        .and_then(|b| b.build());
-    // Never leave a canvas without its toolbar: it would cover the screen with no way to close it
-    let t = match toolbar {
-        Ok(t) => t,
-        Err(e) => {
-            let _ = c.destroy();
-            return Err(e.into());
-        }
-    };
-    // Docked under the voice bar when it's on screen, otherwise at the bottom
-    let tsize = PhysicalSize::new((TOOLBAR_WIDTH * scale) as u32, (TOOLBAR_HEIGHT * scale) as u32);
-    match dock_position(app, tsize) {
-        Some(p) => {
-            DOCKED.store(true, std::sync::atomic::Ordering::SeqCst);
-            let _ = t.set_position(p);
-        }
-        None => {
-            DOCKED.store(false, std::sync::atomic::Ordering::SeqCst);
-            let x = pos.x + (size.width as i32 - tsize.width as i32) / 2;
-            let y = pos.y + size.height as i32 - ((TOOLBAR_HEIGHT + TOOLBAR_BOTTOM) * scale) as i32;
-            let _ = t.set_position(PhysicalPosition::new(x, y));
-        }
-    }
-
-    // Each window shows itself once its page has painted (no white box);
+    // The canvas shows itself once its page has painted (no white box);
     // this is only a fallback in case that signal never arrives
-    let (c2, t2) = (c.clone(), t.clone());
+    let c2 = c.clone();
     std::thread::spawn(move || {
         std::thread::sleep(std::time::Duration::from_millis(1500));
-        for w in [&c2, &t2] {
-            if !w.is_visible().unwrap_or(true) {
-                let _ = w.show();
-            }
+        if !c2.is_visible().unwrap_or(true) {
+            let _ = c2.show();
         }
     });
+    // The drawing tools are in the voice bar, so it has to be on screen;
+    // a bar the user had hidden goes away again when drawing stops
+    let bar_hidden = crate::window::main_window(app).is_some_and(|b| !b.is_visible().unwrap_or(true));
+    BAR_SHOWN_FOR_DRAWING.store(bar_hidden, std::sync::atomic::Ordering::SeqCst);
+    crate::window::show_main(app);
     set_bar_owner(app, Some(&c));
     // Starts in mouse mode: the screen stays live and usable until a tool is picked
     set_passthrough(app, true);
@@ -218,8 +110,13 @@ pub fn close(app: &AppHandle) {
     app.state::<DrawMode>().0.store(true, std::sync::atomic::Ordering::SeqCst);
     // Release the main bar first, or closing the canvas would take it with it
     set_bar_owner(app, None);
-    for w in [toolbar(app), canvas(app)].into_iter().flatten() {
-        let _ = w.close();
+    if let Some(c) = canvas(app) {
+        let _ = c.close();
+    }
+    if BAR_SHOWN_FOR_DRAWING.swap(false, std::sync::atomic::Ordering::SeqCst) {
+        if let Some(bar) = crate::window::main_window(app) {
+            let _ = bar.hide();
+        }
     }
     let _ = app.emit("draw://state", DrawState { open: false, passthrough: false });
 }
@@ -287,55 +184,20 @@ pub fn draw_get_state(app: AppHandle) -> DrawState {
     DrawState { open: is_open(&app), passthrough: app.state::<DrawMode>().0.load(std::sync::atomic::Ordering::SeqCst) }
 }
 
-/// Whether the toolbar last grew downwards (it sits near the top of the screen)
-static GROWS_DOWN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-
-/// Resizes the toolbar (collapsing it, or making room for a popover) keeping
-/// it centred. It grows upwards when there's room above, otherwise downwards,
-/// so popovers never go off screen. Returns "up" or "down".
-#[tauri::command]
-pub fn draw_toolbar_size(window: WebviewWindow, width: f64, height: f64) -> Result<String, String> {
-    use std::sync::atomic::Ordering;
-    let scale = window.scale_factor().map_err(|e| e.to_string())?;
-    let pos = window.outer_position().map_err(|e| e.to_string())?;
-    let old = window.outer_size().map_err(|e| e.to_string())?;
-    let (nw, nh) = ((width * scale).round() as i32, (height * scale).round() as i32);
-    let grow = nh - old.height as i32;
-    let docked = DOCKED.load(Ordering::SeqCst);
-    // Docked: grow away from the voice bar so it's never covered
-    let down = if docked {
-        !docked_above(window.app_handle())
-    } else if grow > 0 {
-        let top = window.current_monitor().ok().flatten().map(|m| m.position().y).unwrap_or(0);
-        let d = pos.y - grow < top;
-        GROWS_DOWN.store(d, Ordering::SeqCst);
-        d
-    } else {
-        GROWS_DOWN.load(Ordering::SeqCst)
-    };
-    let x = pos.x + (old.width as i32 - nw) / 2;
-    let y = if down { pos.y } else { pos.y + old.height as i32 - nh };
-    window.set_size(Size::Logical(LogicalSize::new(width, height))).map_err(|e| e.to_string())?;
-    window.set_position(PhysicalPosition::new(x, y)).map_err(|e| e.to_string())?;
-    if docked {
-        follow_bar(window.app_handle());
-    }
-    Ok(if down { "down" } else { "up" }.into())
-}
-
-/// Hides both drawing windows for a moment, runs `f` on the bare screen, then shows them again
+/// Hides the drawing and the voice bar for a moment, runs `f` on the bare
+/// screen, then shows them again
 fn without_overlay<T>(app: &AppHandle, f: impl FnOnce(&WebviewWindow) -> Result<T>) -> Result<T> {
     let c = canvas(app).ok_or_else(|| anyhow!("drawing isn't open"))?;
-    let t = toolbar(app);
+    let bar = crate::window::main_window(app).filter(|b| b.is_visible().unwrap_or(false));
     let _ = c.hide();
-    if let Some(t) = &t {
-        let _ = t.hide();
+    if let Some(b) = &bar {
+        let _ = b.hide();
     }
     std::thread::sleep(std::time::Duration::from_millis(180));
     let result = f(&c);
     let _ = c.show();
-    if let Some(t) = &t {
-        let _ = t.show();
+    if let Some(b) = &bar {
+        let _ = b.show();
     }
     let _ = c.set_focus();
     result

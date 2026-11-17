@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { SlidersHorizontalIcon } from "lucide-react";
-import { Button, Label, Popover, PopoverContent, PopoverTrigger, Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue, Slider, Switch } from "@/components";
+import { Label, Popover, PopoverContent, PopoverTrigger, Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue, Slider, Switch } from "@/components";
 import { api, Settings, Voice } from "@/lib/api";
+import { Tile } from "./parts";
 
 interface Props {
   settings: Settings | null;
@@ -39,7 +40,7 @@ export const VoiceSelect = ({ voices, value, onChange }: { voices: Voice[]; valu
 };
 
 /** Voice, speed and volume without opening the dashboard */
-export const QuickSettings = ({ settings, update }: Props) => {
+export const QuickSettings = ({ settings, update, side = "bottom" }: Props & { side?: "top" | "bottom" }) => {
   const [voices, setVoices] = useState<Voice[]>([]);
   useEffect(() => {
     api.getVoices().then(setVoices);
@@ -48,11 +49,9 @@ export const QuickSettings = ({ settings, update }: Props) => {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button size="icon" title="Voice & speed">
-          <SlidersHorizontalIcon className="h-4 w-4" />
-        </Button>
+        <Tile title="Voice & speed" icon={SlidersHorizontalIcon} />
       </PopoverTrigger>
-      <PopoverContent align="end" side="bottom" className="w-80 select-none" sideOffset={8}>
+      <PopoverContent align="end" side={side} className="w-80 select-none" sideOffset={8}>
         {settings && (
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">

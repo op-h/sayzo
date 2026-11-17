@@ -2,7 +2,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { cn } from "@/lib/utils";
 
 /**
- * Six-dot drag handle shared by the voice bar and the drawing toolbar.
+ * Six-dot drag handle at the end of the voice bar and its minimized pill.
  * Wider-spaced filled dots, with hover and press feedback, and no extra
  * padding so the bar's spacing stays even on both sides.
  */

@@ -5,7 +5,7 @@ import { ThemeProvider } from "@/hooks";
 import { Bar } from "@/bar";
 import { Dashboard } from "@/dashboard";
 import { ScreenAreaPicker } from "@/ocr";
-import { DrawCanvas, DrawToolbar } from "@/draw";
+import { DrawCanvas } from "@/draw";
 import "./global.css";
 
 // Every window loads the same page; its label decides what it shows
@@ -16,10 +16,6 @@ const view =
     <ScreenAreaPicker />
   ) : label === "draw-canvas" ? (
     <DrawCanvas />
-  ) : label === "draw-toolbar" ? (
-    <ThemeProvider>
-      <DrawToolbar />
-    </ThemeProvider>
   ) : (
     <ThemeProvider>{label === "dashboard" ? <Dashboard /> : <Bar />}</ThemeProvider>
   );

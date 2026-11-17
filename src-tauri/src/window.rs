@@ -4,6 +4,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{AppHandle, LogicalSize, Manager, PhysicalPosition, PhysicalSize, Size, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
 pub const BAR_WIDTH: f64 = 660.0;
+/// Height of the voice row (the whole bar when not drawing)
+const BAR_HEIGHT: f64 = 58.0;
 /// Distance from the top of the screen to the floating bar
 const TOP_OFFSET: i32 = 54;
 
@@ -82,22 +84,67 @@ pub fn position_main(app: &AppHandle) {
     }
 }
 
-pub fn apply_settings(app: &AppHandle, s: &Settings) {
-    for window in app.webview_windows().values() {
-        let _ = window.set_content_protected(s.hide_from_capture);
+/// Applies changed settings to the open windows. `old` is None at startup
+pub fn apply_settings(app: &AppHandle, old: Option<&Settings>, s: &Settings) {
+    if old.is_none_or(|o| o.hide_from_capture != s.hide_from_capture) {
+        // At startup nothing has been drawn yet, so every window can take it
+        for window in app.webview_windows().values() {
+            if old.is_none() || window.is_visible().unwrap_or(false) {
+                protect(window);
+            }
+        }
     }
-    if let Some(window) = main_window(app) {
-        let _ = window.set_always_on_top(s.always_on_top);
+    if old.is_none_or(|o| o.always_on_top != s.always_on_top) {
+        if let Some(window) = main_window(app) {
+            let _ = window.set_always_on_top(s.always_on_top);
+        }
     }
+}
+
+/// Whether Sayzo's windows should be hidden from screen capture
+pub fn hide_from_capture(app: &AppHandle) -> bool {
+    app.state::<crate::settings::SettingsState>().get().hide_from_capture
+}
+
+/// Applies "hide from screen capture" to a window that's on screen. Changing
+/// it on a hidden window leaves that window's last image stuck on screen as a
+/// white box (the dashboard did this every time a setting was saved, e.g.
+/// when the bar was minimized), so hidden windows get it right after they're
+/// shown, and windows created later get it when they're built
+fn protect(window: &WebviewWindow) {
+    let _ = window.set_content_protected(hide_from_capture(window.app_handle()));
 }
 
 /// Current logical width of the bar: full, or the small pill when minimized
 static BAR_CURRENT_WIDTH: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(BAR_WIDTH as u32);
 
+/// Sets the bar's height. `up` keeps the bottom edge in place instead of the
+/// top, for a bar near the bottom of the screen whose panel opens upwards
 #[tauri::command]
-pub fn set_window_height(window: WebviewWindow, height: u32) -> Result<(), String> {
+pub fn set_window_height(window: WebviewWindow, height: u32, up: Option<bool>) -> Result<(), String> {
     let width = BAR_CURRENT_WIDTH.load(std::sync::atomic::Ordering::SeqCst) as f64;
-    window.set_size(Size::Logical(LogicalSize::new(width, height as f64))).map_err(|e| e.to_string())
+    let (pos, old) = (window.outer_position().map_err(|e| e.to_string())?, window.outer_size().map_err(|e| e.to_string())?);
+    window.set_size(Size::Logical(LogicalSize::new(width, height as f64))).map_err(|e| e.to_string())?;
+    if up == Some(true) {
+        let new = window.outer_size().map_err(|e| e.to_string())?;
+        window.set_position(PhysicalPosition::new(pos.x, pos.y + old.height as i32 - new.height as i32)).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+/// Whether the bar sits in the lower half of its screen, so its drawing
+/// tools and popovers should open above it instead of below. Judged by the
+/// voice row, which stays put while the panel grows: it's at the top of the
+/// window, or at the bottom when the panel already opens upwards (`up`)
+#[tauri::command]
+pub fn bar_grows_up(window: WebviewWindow, up: bool) -> bool {
+    let (Ok(pos), Ok(size), Ok(scale), Ok(Some(m))) = (window.outer_position(), window.outer_size(), window.scale_factor(), window.current_monitor()) else {
+        return up;
+    };
+    let half_row = (BAR_HEIGHT / 2.0 * scale).round() as i32;
+    let row_centre = if up { pos.y + size.height as i32 - half_row } else { pos.y + half_row };
+    let wa = m.work_area();
+    row_centre > wa.position.y + wa.size.height as i32 / 2
 }
 
 /// Switches the bar between full width and the minimized pill, keeping it
@@ -120,6 +167,7 @@ pub fn toggle_main(app: &AppHandle) {
         let _ = window.hide();
     } else {
         let _ = window.show();
+        protect(&window);
     }
 }
 
@@ -127,6 +175,7 @@ pub fn show_main(app: &AppHandle) {
     if let Some(window) = main_window(app) {
         let _ = window.show();
         let _ = window.unminimize();
+        protect(&window);
     }
 }
 
@@ -181,6 +230,7 @@ pub fn open_dashboard(app: AppHandle) -> Result<(), String> {
     let w = dashboard(&app).map_err(|e| e.to_string())?;
     let _ = w.show();
     let _ = w.unminimize();
+    protect(&w);
     wake(&w);
     w.set_focus().map_err(|e| e.to_string())
 }
@@ -242,6 +292,8 @@ fn open_ocr_overlay(app: AppHandle) -> Result<(), String> {
         .resizable(false)
         .visible(false)
         .background_color(tauri::window::Color(0, 0, 0, 0))
+        // Set before it's ever shown (never on a hidden window that was on screen)
+        .content_protected(hide_from_capture(&app))
         .build()
         .map_err(|e| e.to_string())?;
     let _ = window.set_position(*monitor.position());

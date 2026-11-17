@@ -64,7 +64,7 @@ fn get_settings(app: AppHandle) -> Settings {
 fn update_settings(app: AppHandle, settings: Settings) -> Vec<String> {
     let old = app.state::<SettingsState>().get();
     app.state::<SettingsState>().set(settings.clone());
-    window::apply_settings(&app, &settings);
+    window::apply_settings(&app, Some(&old), &settings);
     app.state::<Reader>().set_volume(settings.volume);
     sync_tray(&app, &settings);
     let failed = if old.shortcuts != settings.shortcuts { shortcuts::register_all(&app) } else { Vec::new() };
@@ -361,16 +361,15 @@ pub fn run() {
             exit_app,
             window::set_window_height,
             window::open_dashboard_command,
+            window::bar_grows_up,
             window::toggle_dashboard_command,
             window::open_ocr_overlay_command,
             window::set_bar_width,
             draw::draw_open,
             draw::draw_close,
             draw::draw_toggle,
-            draw::draw_undock,
             draw::draw_set_passthrough,
             draw::draw_get_state,
-            draw::draw_toolbar_size,
             draw::draw_capture_screen,
             draw::draw_save_image,
             draw::draw_read_region,
@@ -386,16 +385,7 @@ pub fn run() {
 
             let s = app.state::<SettingsState>().get();
             window::position_main(&handle);
-            // A docked drawing toolbar follows the voice bar around
-            if let Some(bar) = window::main_window(&handle) {
-                let h = handle.clone();
-                bar.on_window_event(move |e| {
-                    if matches!(e, tauri::WindowEvent::Moved(_) | tauri::WindowEvent::Resized(_)) {
-                        draw::follow_bar(&h);
-                    }
-                });
-            }
-            window::apply_settings(&handle, &s);
+            window::apply_settings(&handle, None, &s);
             window::create_dashboard(&handle);
             setup_tray(&handle)?;
             let failed = shortcuts::register_all(&handle);

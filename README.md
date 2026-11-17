@@ -48,7 +48,7 @@ Sayzo is a small glass bar that floats at the top of your screen. Select text in
 
 ## Screenshots
 
-**Draw on screen**, with the drawing toolbar docked under the voice bar:
+**Draw on screen**: the voice bar grows its drawing tools as a second row:
 
 <img src="docs/screenshots/drawing.png" width="720" alt="Drawing on screen with Sayzo" />
 

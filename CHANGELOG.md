@@ -2,9 +2,14 @@
 
 All notable changes to Sayzo are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/).
 
-## [0.3.2] - 2026-10-30
+## [0.4.0] - 2026-11-17
+
+### Changed
+- **The voice bar and the drawing tools are now one panel.** When you start drawing, the bar grows a second row with the drawing tools, in the same rounded panel with one drag handle; stop drawing and it shrinks back. Near the bottom of the screen the tools open above the bar instead. Tools are grouped into rounded segments, and the bar remembers your last pen, colour and size.
+- The bar's popovers (reading panel, quick settings, drawing colours) open upwards when the bar is near the bottom of the screen, instead of running off it.
 
 ### Fixed
+- Minimizing the bar could leave a white box on screen where the dashboard had been.
 - The British English voices (Emma, Isabella, Alice, Lily, George, Fable, Daniel and Lewis) read nothing. The speech engine was asked for an "en-gb" voice that its phoneme data doesn't have, so every sentence failed silently. They now speak normally.
 - The dashboard could open as a blank white window, or come back blank after being minimized. Sayzo now makes it redraw every time it's opened or restored, and any moment before it's drawn shows the theme's background instead of a white sheet.
 
@@ -80,7 +85,7 @@ First public release.
 - WAV export, reading history, tray menu, launch at startup, hide from screen sharing.
 - Customizable global shortcuts, themes and transparency.
 
-[0.3.2]: https://github.com/op-h/sayzo/releases/tag/v0.3.2
+[0.4.0]: https://github.com/op-h/sayzo/releases/tag/v0.4.0
 [0.3.1]: https://github.com/op-h/sayzo/releases/tag/v0.3.1
 [0.3.0]: https://github.com/op-h/sayzo/releases/tag/v0.3.0
 [0.2.1]: https://github.com/op-h/sayzo/releases/tag/v0.2.1

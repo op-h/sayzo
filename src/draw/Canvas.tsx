@@ -207,7 +207,7 @@ export const DrawCanvas = () => {
     }
   }, []);
 
-  // Commands from the toolbar (and from this window's own shortcuts)
+  // Commands from the voice bar's drawing row (and from this window's own shortcuts)
   useEffect(() => {
     const un = listen<Command>("draw://command", (e) => {
       switch (e.payload) {

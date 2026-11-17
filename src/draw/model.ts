@@ -28,7 +28,7 @@ export type Element =
   | (Base & { kind: "text"; at: Point; text: string })
   | (Base & { kind: "number"; at: Point; n: number });
 
-/** Settings shared by the canvas and toolbar windows */
+/** Settings shared by the canvas and the voice bar's drawing row */
 export interface DrawSettings {
   tool: Tool;
   /** Last shape picked, shown on the shapes button */
@@ -69,21 +69,47 @@ export interface CanvasStatus {
   hidden: boolean;
 }
 
+const SETTINGS_KEY = "sayzo-draw";
+
 /**
- * Both drawing windows keep a copy of the settings; whoever changes them
- * broadcasts the new value so the other window follows.
+ * The bar's last pen, so a new drawing starts with the same tool, colour and
+ * size. Board, fading ink and spotlight start off every time.
  */
-export const useDrawSettings = () => {
-  const [settings, setSettings] = useState<DrawSettings>(DEFAULT_SETTINGS);
+const saved = (): DrawSettings => {
+  try {
+    const { tool, shape, color, size } = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? "{}");
+    return { ...DEFAULT_SETTINGS, ...(tool && { tool }), ...(shape && { shape }), ...(color && { color }), ...(size && { size }) };
+  } catch {
+    return DEFAULT_SETTINGS;
+  }
+};
+
+/**
+ * The canvas and the voice bar each keep a copy of the settings; whoever
+ * changes them broadcasts the new value so the other window follows. The bar
+ * outlives every drawing, so it's the owner: it remembers the settings and
+ * answers a new canvas's "hello" with them (only the owner answers, or a
+ * fresh canvas would reset the bar to the defaults).
+ */
+export const useDrawSettings = (owner = false) => {
+  const [settings, setSettings] = useState<DrawSettings>(() => (owner ? saved() : DEFAULT_SETTINGS));
   useEffect(() => {
     const un = listen<DrawSettings>("draw://settings", (e) => setSettings(e.payload));
-    const hello = listen("draw://hello", () => setSettings((s) => (emit("draw://settings", s), s)));
-    emit("draw://hello");
+    const hello = owner ? listen("draw://hello", () => setSettings((s) => (emit("draw://settings", s), s))) : null;
+    if (!owner) emit("draw://hello");
     return () => {
       un.then((f) => f());
-      hello.then((f) => f());
+      hello?.then((f) => f());
     };
-  }, []);
+  }, [owner]);
+  useEffect(() => {
+    if (!owner) return;
+    try {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    } catch {
+      // Private storage unavailable: settings just aren't remembered
+    }
+  }, [owner, settings]);
   const update = (patch: Partial<DrawSettings>) =>
     setSettings((s) => {
       const next = { ...s, ...patch };
@@ -130,7 +156,7 @@ export const TOOL_LABELS: Record<Tool, string> = {
 };
 
 /**
- * Keyboard shortcuts shared by the canvas and toolbar. Returns true when the
+ * Keyboard shortcuts shared by the canvas and the voice bar. Returns true when the
  * key was handled. Typing in the text tool must not trigger these.
  */
 export const handleDrawKey = (
